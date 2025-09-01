@@ -238,6 +238,43 @@ export default function PDFExamGenerator() {
                   </div>
                 )}
 
+                {/* Advertencias importantes */}
+                <div className="space-y-3 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <div className="p-1 bg-yellow-500/20 rounded-full mt-1">
+                      <svg className="h-4 w-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-yellow-300 font-medium text-sm">⚠️ Archivos en su mayoría no compatibles:</h4>
+                      <ul className="text-yellow-200/80 text-xs space-y-1">
+                        <li>• <strong>PDFs de Wuolah</strong>: No funcionan debido a la publicidad integrada</li>
+                        <li>• <strong>Presentaciones PDF</strong>: Slides y diapositivas no son ideales para generar exámenes</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recomendaciones */}
+                <div className="space-y-3 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <div className="p-1 bg-green-500/20 rounded-full mt-1">
+                      <svg className="h-4 w-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-green-300 font-medium text-sm">✅ Funciona mejor con:</h4>
+                      <ul className="text-green-200/80 text-xs space-y-1">
+                        <li>• <strong>Documentos de texto</strong>: Apuntes, libros digitalizados</li>
+                        <li>• <strong>Material educativo</strong>: PDFs con contenido textual claro</li>
+                        <li>• <strong>Temarios y manuales</strong>: Documentos estructurados</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
                 {file && (
                   <div className="space-y-4 animate-in slide-in-from-bottom-2">
                     <Label className="text-white text-lg">Tipo de Examen</Label>
