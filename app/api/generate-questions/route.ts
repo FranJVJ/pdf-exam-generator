@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
     const attemptGeneration = async (attempt = 1, maxAttempts = 3): Promise<any> => {
       try {
         const { text } = await generateText({
-          model: groq("llama3-70b-8192"),
+          model: groq("llama-3.3-70b-versatile"),
           prompt: prompt,
         })
 
