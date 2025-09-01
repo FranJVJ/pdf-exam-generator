@@ -247,7 +247,7 @@ export default function PDFExamGenerator() {
                       </svg>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-yellow-300 font-medium text-sm">⚠️ Archivos en su mayoría no compatibles:</h4>
+                      <h4 className="text-yellow-300 font-medium text-sm">Archivos en su mayoría no compatibles:</h4>
                       <ul className="text-yellow-200/80 text-xs space-y-1">
                         <li>• <strong>PDFs de Wuolah</strong>: No funcionan debido a la publicidad integrada</li>
                         <li>• <strong>Presentaciones PDF</strong>: Slides y diapositivas no son ideales para generar exámenes</li>
@@ -265,7 +265,7 @@ export default function PDFExamGenerator() {
                       </svg>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-green-300 font-medium text-sm">✅ Funciona mejor con:</h4>
+                      <h4 className="text-green-300 font-medium text-sm">Funciona mejor con:</h4>
                       <ul className="text-green-200/80 text-xs space-y-1">
                         <li>• <strong>Documentos de texto</strong>: Apuntes, libros digitalizados</li>
                         <li>• <strong>Material educativo</strong>: PDFs con contenido textual claro</li>
