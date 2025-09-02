@@ -131,6 +131,9 @@ export default function PDFExamGenerator() {
       const data = await response.json()
       setResults(data.results)
       setStep("results")
+      
+      // Scroll automático hacia arriba para ver los resultados
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (error) {
       console.error("Error:", error)
       alert("Error al corregir el examen. Inténtalo de nuevo.")
@@ -276,32 +279,72 @@ export default function PDFExamGenerator() {
                 </div>
 
                 {file && (
-                  <div className="space-y-4 animate-in slide-in-from-bottom-2">
-                    <Label className="text-white text-lg">Tipo de Examen</Label>
+                  <div className="space-y-6 animate-in slide-in-from-bottom-2">
+                    <div className="text-center">
+                      <Label className="text-white text-xl font-bold">Selecciona el Tipo de Examen</Label>
+                      <p className="text-gray-400 text-sm mt-2">Elige el formato que mejor se adapte a tus necesidades</p>
+                    </div>
                     <RadioGroup 
                       value={examType} 
                       onValueChange={(value: "test" | "development") => setExamType(value)}
-                      className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                      className="grid grid-cols-1 md:grid-cols-2 gap-6"
                     >
-                      <div className="flex items-center space-x-3 p-4 rounded-lg border border-gray-600 bg-gray-700/30 hover:bg-gray-700/50 transition-all cursor-pointer">
-                        <RadioGroupItem value="test" id="test" />
-                        <Label htmlFor="test" className="flex-1 cursor-pointer">
-                          <div>
-                            <div className="text-white font-medium">Test (20 preguntas)</div>
-                            <div className="text-gray-400 text-sm">Preguntas de múltiple opción</div>
+                      <div className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
+                        examType === 'test' 
+                          ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' 
+                          : 'border-gray-600 bg-gray-700/30 hover:border-blue-400 hover:bg-blue-500/5'
+                      }`}>
+                        <RadioGroupItem value="test" id="test" className="absolute top-4 right-4" />
+                        <Label htmlFor="test" className="cursor-pointer block">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`p-3 rounded-full ${examType === 'test' ? 'bg-blue-500' : 'bg-blue-500/20'}`}>
+                              <Target className={`h-6 w-6 ${examType === 'test' ? 'text-white' : 'text-blue-400'}`} />
+                            </div>
+                            <div>
+                              <div className="text-white font-bold text-lg">Test</div>
+                              <div className="text-blue-300 text-sm font-medium">20 preguntas</div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-gray-300 text-sm">Preguntas de múltiple opción</div>
+                            <div className="text-gray-400 text-xs">✓ Corrección automática instantánea</div>
+                            <div className="text-gray-400 text-xs">✓ Ideal para repasos rápidos</div>
                           </div>
                         </Label>
-                        <Target className="h-5 w-5 text-blue-400" />
+                        {examType === 'test' && (
+                          <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                            Seleccionado
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center space-x-3 p-4 rounded-lg border border-gray-600 bg-gray-700/30 hover:bg-gray-700/50 transition-all cursor-pointer">
-                        <RadioGroupItem value="development" id="development" />
-                        <Label htmlFor="development" className="flex-1 cursor-pointer">
-                          <div>
-                            <div className="text-white font-medium">Desarrollo (5 preguntas)</div>
-                            <div className="text-gray-400 text-sm">Preguntas abiertas con corrección IA</div>
+                      
+                      <div className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
+                        examType === 'development' 
+                          ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20' 
+                          : 'border-gray-600 bg-gray-700/30 hover:border-purple-400 hover:bg-purple-500/5'
+                      }`}>
+                        <RadioGroupItem value="development" id="development" className="absolute top-4 right-4" />
+                        <Label htmlFor="development" className="cursor-pointer block">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`p-3 rounded-full ${examType === 'development' ? 'bg-purple-500' : 'bg-purple-500/20'}`}>
+                              <BookOpen className={`h-6 w-6 ${examType === 'development' ? 'text-white' : 'text-purple-400'}`} />
+                            </div>
+                            <div>
+                              <div className="text-white font-bold text-lg">Desarrollo</div>
+                              <div className="text-purple-300 text-sm font-medium">5 preguntas</div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-gray-300 text-sm">Preguntas abiertas con corrección IA</div>
+                            <div className="text-gray-400 text-xs">✓ Evaluación detallada y personalizada</div>
+                            <div className="text-gray-400 text-xs">✓ Perfecto para comprensión profunda</div>
                           </div>
                         </Label>
-                        <BookOpen className="h-5 w-5 text-purple-400" />
+                        {examType === 'development' && (
+                          <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                            Seleccionado
+                          </div>
+                        )}
                       </div>
                     </RadioGroup>
                   </div>
@@ -368,9 +411,20 @@ export default function PDFExamGenerator() {
                       <Target className="h-6 w-6 text-blue-400" />
                       Examen en Progreso
                     </h2>
-                    <Badge variant="outline" className="border-blue-500/50 text-blue-300 px-4 py-2">
-                      {userAnswers.length}/{questions.length} respondidas
-                    </Badge>
+                    <div className="flex items-center gap-4">
+                      <Badge variant="outline" className="border-blue-500/50 text-blue-300 px-4 py-2">
+                        {userAnswers.length}/{questions.length} respondidas
+                      </Badge>
+                      <Button
+                        onClick={resetApp}
+                        variant="outline"
+                        size="sm"
+                        className="border-orange-500/50 text-orange-300 hover:bg-orange-500/20 hover:text-orange-200 hover:border-orange-400"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Reenviar PDF
+                      </Button>
+                    </div>
                   </div>
                   <Progress value={progress} className="h-3 bg-gray-700" />
                   <p className="text-gray-400 mt-2">Progreso: {Math.round(progress)}%</p>
