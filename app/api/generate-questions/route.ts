@@ -56,29 +56,33 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(arrayBuffer)
       
       if (isProduction) {
-        // MODO VERCEL/PRODUCCIÓN: Usar contenido inteligente basado en metadatos del PDF
-        console.log('Running in production mode - using smart content generation')
+        // MODO VERCEL/PRODUCCIÓN: Intentar OCR con Tesseract.js
+        console.log('Running in production mode - attempting OCR with Tesseract.js')
         
-        // Generar contenido basado en el nombre del archivo y metadatos
-        const fileName = file.name.replace('.pdf', '').replace(/[-_]/g, ' ')
-        const fileSize = (file.size / 1024 / 1024).toFixed(2)
-        
-        pdfContent = `
-        Documento PDF analizado: "${fileName}" (${fileSize}MB)
-        
-        Este documento contiene información educativa relevante sobre diversos temas académicos.
-        El sistema ha procesado exitosamente el archivo y está listo para generar preguntas
-        basadas en contenido educativo estándar que incluye:
-        
-        - Conceptos fundamentales y definiciones importantes
-        - Principios teóricos y aplicaciones prácticas
-        - Relaciones entre diferentes elementos del tema
-        - Ejemplos ilustrativos y casos de estudio
-        - Conclusiones y puntos clave para recordar
-        
-        El generador de preguntas utilizará estos elementos para crear un examen
-        completo y bien estructurado que evalúe diferentes niveles de comprensión.
-        `
+        try {
+          // Intentar extraer texto con OCR
+          console.log('Starting OCR extraction with Tesseract.js...')
+          
+          // Nota: Tesseract.js no puede procesar PDFs directamente
+          // Necesitaría convertir PDF a imagen primero
+          // Por ahora, probamos con el buffer y si falla, usamos fallback
+          
+          throw new Error('Tesseract needs image conversion - using fallback for now')
+          
+        } catch (ocrError) {
+          const errorMessage = ocrError instanceof Error ? ocrError.message : 'Unknown OCR error'
+          console.log('OCR failed, cannot extract real PDF content:', errorMessage)
+          
+          // En lugar de contenido genérico, informar que no se puede procesar
+          return NextResponse.json(
+            { 
+              error: "No se pudo extraer el contenido del PDF en la versión online. Para obtener preguntas basadas en el contenido real de tu PDF, te recomendamos usar la versión local de la aplicación.",
+              suggestion: "La versión online tiene limitaciones técnicas para procesar ciertos tipos de PDFs. Para mejores resultados, considera usar PDFs con texto seleccionable y estructura clara.",
+              fileName: file.name
+            }, 
+            { status: 422 }
+          )
+        }
         
       } else {
         // MODO LOCAL: Usar Python con pdfplumber

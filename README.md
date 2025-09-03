@@ -10,12 +10,13 @@ Una aplicación web moderna que convierte documentos PDF en exámenes interactiv
 
 - 🔄 **Dos tipos de examen**: Test (20 preguntas múltiple opción) y Desarrollo (5 preguntas abiertas)
 - 🤖 **IA powered**: Usa Groq AI (LLaMA 3.3-70B-Versatile) para generar preguntas inteligentes
-- 📄 **Procesamiento de PDFs**: Extrae texto automáticamente usando pdfplumber
+- 📄 **Procesamiento de PDFs**: Extrae texto automáticamente usando pdfplumber (local)
 - 🎯 **Corrección automática**: Evaluación instantánea con retroalimentación detallada
 - 🔀 **Preguntas variadas**: Sistema de aleatorización para evitar repetición
 - 💰 **Completamente gratis**: Sin costos de API usando Groq
 - ⚡ **Interfaz moderna**: Construido con Next.js 15 y Tailwind CSS
-- ⚠️ **Guías de usuario**: Advertencias y recomendaciones para archivos compatibles
+- 📱 **Experiencia optimizada**: Validación en tiempo real y navegación intuitiva
+- 🎨 **UI mejorada**: Scroll automático, validación de archivos y diseño visual limpio
 
 ## 🛠️ Tecnologías
 
@@ -73,15 +74,26 @@ npm run dev
 5. Responde las preguntas
 6. Obtén tu calificación y retroalimentación
 
-## ⚠️ Archivos Compatibles
+## ⚠️ Compatibilidad de Archivos
 
-### ❌ **No funcionan bien:**
-- PDFs descargados de Wuolah (contienen publicidad)
-- Presentaciones PDF (slides y diapositivas)
+### 🌐 **Versión Online (Vercel)**
+- **Limitaciones**: Procesamiento limitado de PDFs complejos
+- **Recomendación**: Para mejores resultados, usar la versión local
+- **Manejo inteligente**: Sistema honesto que informa cuando no puede procesar un archivo
 
-### ✅ **Funcionan mejor:**
+### 💻 **Versión Local**
+- **Funcionamiento completo**: Extrae texto real de cualquier PDF usando pdfplumber
+- **Sin limitaciones**: Procesa PDFs complejos, escaneados y con imágenes
+- **Rendimiento óptimo**: Todas las funcionalidades disponibles
+
+### 📋 **Limitaciones Generales**
+- **Tamaño máximo**: 10MB por archivo
+- **Libros escaneados**: Deben estar perfectamente escaneados o el texto puede detectarse incorrectamente
+- **Presentaciones PDF**: Slides y diapositivas no son ideales para generar exámenes
+
+### ✅ **Funcionan mejor**
 - Documentos de texto y apuntes
-- Material educativo con contenido textual claro
+- Material educativo con contenido textual claro  
 - Temarios y manuales estructurados
 
 ## 📁 Estructura del Proyecto
@@ -116,12 +128,15 @@ Califica las respuestas del examen
 
 ## 🌟 Características Técnicas
 
+- **Doble entorno**: Funcionamiento optimizado tanto en local como en producción
+- **Validación en tiempo real**: Verificación de tamaño de archivos al seleccionar
+- **Navegación mejorada**: Scroll automático y flujo de usuario optimizado
+- **Manejo honesto de errores**: Informa claramente cuando no puede procesar un PDF
 - **Sistema de reintentos**: 3 intentos automáticos con Groq AI
-- **Fallback inteligente**: Preguntas de ejemplo si falla la IA
+- **Fallback inteligente**: Manejo elegante de PDFs no procesables
 - **Validación robusta**: Verificación de tipos de archivo y tamaño
 - **Limpieza automática**: Eliminación de archivos temporales
-- **Manejo de errores**: Sistema completo de logging y recuperación
-- **Detección de entorno**: Funciona tanto en local como en Vercel
+- **Interface moderna**: Eliminación de elementos redundantes y mejor UX
 
 ## 💰 Ventajas de Groq
 

@@ -88,16 +88,20 @@ export default function PDFExamGenerator() {
       if (!response.ok) {
         // Intentar obtener más información del error
         let errorMessage = "Error generating questions"
+        let suggestion = ""
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
+          if (errorData.suggestion) {
+            suggestion = "\n\n💡 " + errorData.suggestion
+          }
           if (errorData.instructions) {
             errorMessage += "\n\n" + errorData.instructions
           }
         } catch {
           // Si no se puede parsear el JSON, usar mensaje genérico
         }
-        throw new Error(errorMessage)
+        throw new Error(errorMessage + suggestion)
       }
 
       const data = await response.json()
@@ -291,10 +295,10 @@ export default function PDFExamGenerator() {
                       </svg>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-yellow-300 font-medium text-sm">Limitaciones y archivos no compatibles:</h4>
+                      <h4 className="text-yellow-300 font-medium text-sm">Limitaciones importantes:</h4>
                       <ul className="text-yellow-200/80 text-xs space-y-1">
                         <li>• <strong>Tamaño máximo</strong>: 10MB por archivo</li>
-                        <li>• <strong>PDFs de Wuolah</strong>: No funcionan debido a la publicidad integrada</li>
+                        <li>• <strong>Libros escaneados</strong>: Deben estar perfectamente escaneados o el texto puede detectarse mal</li>
                         <li>• <strong>Presentaciones PDF</strong>: Slides y diapositivas no son ideales para generar exámenes</li>
                       </ul>
                     </div>
