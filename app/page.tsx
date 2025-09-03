@@ -46,10 +46,24 @@ export default function PDFExamGenerator() {
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([])
   const [results, setResults] = useState<ExamResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
+    
+    // Limpiar errores previos
+    setFileSizeError(null)
+    
     if (selectedFile && selectedFile.type === "application/pdf") {
+      // Validar tamaño del archivo (máximo 10MB)
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (selectedFile.size > maxSize) {
+        const fileSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2)
+        setFileSizeError(`El archivo es demasiado grande (${fileSizeMB}MB). El tamaño máximo permitido es 10MB.`)
+        setFile(null)
+        return
+      }
+      
       setFile(selectedFile)
     }
   }
@@ -89,6 +103,11 @@ export default function PDFExamGenerator() {
       const data = await response.json()
       setQuestions(data.questions)
       setStep("exam")
+      
+      // Scroll automático hacia arriba para ver el examen
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 100)
     } catch (error) {
       console.error("Error:", error)
       const errorMessage = error instanceof Error ? error.message : "Error al generar las preguntas. Inténtalo de nuevo."
@@ -132,8 +151,10 @@ export default function PDFExamGenerator() {
       setResults(data.results)
       setStep("results")
       
-      // Scroll automático hacia arriba para ver los resultados
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      // Scroll automático hacia arriba después de que se rendericen los resultados
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 100)
     } catch (error) {
       console.error("Error:", error)
       alert("Error al corregir el examen. Inténtalo de nuevo.")
@@ -149,6 +170,12 @@ export default function PDFExamGenerator() {
     setQuestions([])
     setUserAnswers([])
     setResults([])
+    setFileSizeError(null)
+    
+    // Scroll automático hacia arriba
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 100)
   }
 
   const correctAnswers = results.filter((r) => r.isCorrect).length
@@ -241,6 +268,20 @@ export default function PDFExamGenerator() {
                   </div>
                 )}
 
+                {fileSizeError && (
+                  <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-red-500/20 to-red-600/20 rounded-lg border border-red-500/30 animate-in slide-in-from-bottom-2">
+                    <div className="p-2 bg-red-500/20 rounded-full">
+                      <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-red-300 font-medium">Archivo demasiado grande</p>
+                      <p className="text-red-400/70 text-sm">{fileSizeError}</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Advertencias importantes */}
                 <div className="space-y-3 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                   <div className="flex items-start gap-2">
@@ -250,8 +291,9 @@ export default function PDFExamGenerator() {
                       </svg>
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-yellow-300 font-medium text-sm">Archivos en su mayoría no compatibles:</h4>
+                      <h4 className="text-yellow-300 font-medium text-sm">Limitaciones y archivos no compatibles:</h4>
                       <ul className="text-yellow-200/80 text-xs space-y-1">
+                        <li>• <strong>Tamaño máximo</strong>: 10MB por archivo</li>
                         <li>• <strong>PDFs de Wuolah</strong>: No funcionan debido a la publicidad integrada</li>
                         <li>• <strong>Presentaciones PDF</strong>: Slides y diapositivas no son ideales para generar exámenes</li>
                       </ul>
@@ -284,33 +326,29 @@ export default function PDFExamGenerator() {
                       <Label className="text-white text-xl font-bold">Selecciona el Tipo de Examen</Label>
                       <p className="text-gray-400 text-sm mt-2">Elige el formato que mejor se adapte a tus necesidades</p>
                     </div>
-                    <RadioGroup 
-                      value={examType} 
-                      onValueChange={(value: "test" | "development") => setExamType(value)}
-                      className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                    >
-                      <div className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
-                        examType === 'test' 
-                          ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' 
-                          : 'border-gray-600 bg-gray-700/30 hover:border-blue-400 hover:bg-blue-500/5'
-                      }`}>
-                        <RadioGroupItem value="test" id="test" className="absolute top-4 right-4" />
-                        <Label htmlFor="test" className="cursor-pointer block">
-                          <div className="flex items-center gap-4 mb-4">
-                            <div className={`p-3 rounded-full ${examType === 'test' ? 'bg-blue-500' : 'bg-blue-500/20'}`}>
-                              <Target className={`h-6 w-6 ${examType === 'test' ? 'text-white' : 'text-blue-400'}`} />
-                            </div>
-                            <div>
-                              <div className="text-white font-bold text-lg">Test</div>
-                              <div className="text-blue-300 text-sm font-medium">20 preguntas</div>
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div 
+                        onClick={() => setExamType('test')}
+                        className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
+                          examType === 'test' 
+                            ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' 
+                            : 'border-gray-600 bg-gray-700/30 hover:border-blue-400 hover:bg-blue-500/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className={`p-3 rounded-full ${examType === 'test' ? 'bg-blue-500' : 'bg-blue-500/20'}`}>
+                            <Target className={`h-6 w-6 ${examType === 'test' ? 'text-white' : 'text-blue-400'}`} />
                           </div>
-                          <div className="space-y-2">
-                            <div className="text-gray-300 text-sm">Preguntas de múltiple opción</div>
-                            <div className="text-gray-400 text-xs">✓ Corrección automática instantánea</div>
-                            <div className="text-gray-400 text-xs">✓ Ideal para repasos rápidos</div>
+                          <div>
+                            <div className="text-white font-bold text-lg">Test</div>
+                            <div className="text-blue-300 text-sm font-medium">20 preguntas</div>
                           </div>
-                        </Label>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-gray-300 text-sm">Preguntas de múltiple opción</div>
+                          <div className="text-gray-400 text-xs">✓ Corrección automática instantánea</div>
+                          <div className="text-gray-400 text-xs">✓ Ideal para repasos rápidos</div>
+                        </div>
                         {examType === 'test' && (
                           <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold">
                             Seleccionado
@@ -318,41 +356,41 @@ export default function PDFExamGenerator() {
                         )}
                       </div>
                       
-                      <div className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
-                        examType === 'development' 
-                          ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20' 
-                          : 'border-gray-600 bg-gray-700/30 hover:border-purple-400 hover:bg-purple-500/5'
-                      }`}>
-                        <RadioGroupItem value="development" id="development" className="absolute top-4 right-4" />
-                        <Label htmlFor="development" className="cursor-pointer block">
-                          <div className="flex items-center gap-4 mb-4">
-                            <div className={`p-3 rounded-full ${examType === 'development' ? 'bg-purple-500' : 'bg-purple-500/20'}`}>
-                              <BookOpen className={`h-6 w-6 ${examType === 'development' ? 'text-white' : 'text-purple-400'}`} />
-                            </div>
-                            <div>
-                              <div className="text-white font-bold text-lg">Desarrollo</div>
-                              <div className="text-purple-300 text-sm font-medium">5 preguntas</div>
-                            </div>
+                      <div 
+                        onClick={() => setExamType('development')}
+                        className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
+                          examType === 'development' 
+                            ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20' 
+                            : 'border-gray-600 bg-gray-700/30 hover:border-purple-400 hover:bg-purple-500/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className={`p-3 rounded-full ${examType === 'development' ? 'bg-purple-500' : 'bg-purple-500/20'}`}>
+                            <BookOpen className={`h-6 w-6 ${examType === 'development' ? 'text-white' : 'text-purple-400'}`} />
                           </div>
-                          <div className="space-y-2">
-                            <div className="text-gray-300 text-sm">Preguntas abiertas con corrección IA</div>
-                            <div className="text-gray-400 text-xs">✓ Evaluación detallada y personalizada</div>
-                            <div className="text-gray-400 text-xs">✓ Perfecto para comprensión profunda</div>
+                          <div>
+                            <div className="text-white font-bold text-lg">Desarrollo</div>
+                            <div className="text-purple-300 text-sm font-medium">5 preguntas</div>
                           </div>
-                        </Label>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-gray-300 text-sm">Preguntas abiertas con corrección IA</div>
+                          <div className="text-gray-400 text-xs">✓ Evaluación detallada y personalizada</div>
+                          <div className="text-gray-400 text-xs">✓ Perfecto para comprensión profunda</div>
+                        </div>
                         {examType === 'development' && (
                           <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold">
                             Seleccionado
                           </div>
                         )}
                       </div>
-                    </RadioGroup>
+                    </div>
                   </div>
                 )}
 
                 <Button
                   onClick={generateQuestions}
-                  disabled={!file || isLoading}
+                  disabled={!file || isLoading || !!fileSizeError}
                   className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
                 >
                   {isLoading ? (
