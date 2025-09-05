@@ -58,6 +58,14 @@ export default function PDFExamGenerator() {
   const [literaryFileSizeError, setLiteraryFileSizeError] = useState<string | null>(null)
   const [literaryImageFile, setLiteraryImageFile] = useState<File | null>(null)
   const [literaryImageSizeError, setLiteraryImageSizeError] = useState<string | null>(null)
+  const [literaryImageSuccessMessage, setLiteraryImageSuccessMessage] = useState<string | null>(null)
+  
+  const switchLiteraryInputMode = (mode: "text" | "pdf" | "image") => {
+    setLiteraryInputMode(mode)
+    setLiteraryImageSizeError(null)
+    setLiteraryImageSuccessMessage(null)
+    setLiteraryFileSizeError(null)
+  }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -116,7 +124,14 @@ export default function PDFExamGenerator() {
       }
 
       const data = await response.json()
-      setQuestions(data.questions)
+      
+      // Procesar las preguntas para agregar el campo 'type' basándose en si tienen opciones
+      const processedQuestions = data.questions.map((q: any) => ({
+        ...q,
+        type: q.options ? 'multiple-choice' : 'development'
+      }))
+      
+      setQuestions(processedQuestions)
       setStep("exam")
       
       // Scroll automático hacia arriba para ver el examen
@@ -151,19 +166,61 @@ export default function PDFExamGenerator() {
     setIsLoading(true)
 
     try {
+      // Convertir las respuestas al formato que espera el backend
+      const formattedAnswers = userAnswers.map(userAnswer => {
+        if (userAnswer.selectedOption !== undefined) {
+          // Para múltiple opción, convertir el índice a letra (0->A, 1->B, 2->C, 3->D)
+          const optionLetter = String.fromCharCode(65 + userAnswer.selectedOption) // 65 es 'A' en ASCII
+          return {
+            questionId: userAnswer.questionId,
+            answer: optionLetter
+          }
+        } else {
+          // Para desarrollo, usar textAnswer
+          return {
+            questionId: userAnswer.questionId,
+            textAnswer: userAnswer.textAnswer || ""
+          }
+        }
+      })
+
       const response = await fetch(API_ENDPOINTS.gradeExam, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           questions,
-          userAnswers,
+          userAnswers: formattedAnswers,
         }),
       })
 
       if (!response.ok) throw new Error("Error grading exam")
 
       const data = await response.json()
-      setResults(data.results)
+      
+      // Procesar los resultados para convertir las letras a texto completo
+      const processedResults = data.results.map((result: any) => {
+        const question = questions.find(q => q.id === result.questionId)
+        
+        if (question && question.options) {
+          // Para preguntas de múltiple opción, convertir letras a texto completo
+          const convertLetterToText = (letter: string) => {
+            if (!letter) return ""
+            const index = letter.charCodeAt(0) - 65 // A=0, B=1, C=2, D=3
+            return question.options?.[index] || letter
+          }
+          
+          return {
+            ...result,
+            userAnswer: convertLetterToText(result.userAnswer),
+            correctAnswer: convertLetterToText(result.correctAnswer)
+          }
+        }
+        
+        // Para preguntas de desarrollo, mantener como está
+        return result
+      })
+      
+      setResults(processedResults)
       setStep("results")
       
       // Scroll automático hacia arriba después de que se rendericen los resultados
@@ -203,6 +260,7 @@ export default function PDFExamGenerator() {
     
     // Limpiar errores previos y texto
     setLiteraryImageSizeError(null)
+    setLiteraryImageSuccessMessage(null)
     setLiteraryText("")
     
     if (selectedFile && selectedFile.type.startsWith('image/')) {
@@ -238,14 +296,17 @@ export default function PDFExamGenerator() {
         
         if (data.text && data.text.trim()) {
           setLiteraryText(data.text.trim())
-          setLiteraryImageSizeError(`✅ Texto extraído exitosamente (${data.length} caracteres)`)
+          setLiteraryImageSizeError(null) // Limpiar errores
+          setLiteraryImageSuccessMessage(`✅ Texto extraído exitosamente (${data.length} caracteres)`)
         } else {
+          setLiteraryImageSuccessMessage(null)
           setLiteraryImageSizeError("⚠️ No se pudo extraer texto de la imagen. Asegúrate de que contenga texto legible.")
         }
         
       } catch (error) {
         console.error('Error en OCR:', error)
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+        setLiteraryImageSuccessMessage(null)
         setLiteraryImageSizeError(`❌ Error procesando imagen: ${errorMessage}. Puedes transcribir manualmente el texto.`)
       } finally {
         setIsLoading(false)
@@ -265,8 +326,9 @@ export default function PDFExamGenerator() {
       let response;
 
       if (literaryInputMode === "text" || literaryInputMode === "image") {
-        // Modo texto: enviar directamente
-        response = await fetch("/api/literary-commentary", {
+        // Llamar directamente al backend de Python
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
+        response = await fetch(`${API_BASE_URL}/generate-literary-commentary`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -274,14 +336,36 @@ export default function PDFExamGenerator() {
           }),
         })
       } else {
-        // Modo PDF: extraer texto primero y luego generar comentario
+        // Modo PDF: primero extraer texto, luego generar comentario
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
+        
+        // Paso 1: Extraer texto del PDF
         const formData = new FormData()
         formData.append("pdf", literaryFile!)
-        formData.append("mode", "literary")
-
-        response = await fetch("/api/literary-commentary", {
+        
+        const extractResponse = await fetch(`${API_BASE_URL}/extract-text-from-pdf`, {
           method: "POST",
           body: formData,
+        })
+        
+        if (!extractResponse.ok) {
+          throw new Error("No se pudo extraer texto del PDF")
+        }
+        
+        const extractData = await extractResponse.json()
+        const extractedText = extractData.text || extractData.content || ""
+        
+        if (!extractedText.trim()) {
+          throw new Error("El PDF no contiene texto legible")
+        }
+        
+        // Paso 2: Generar comentario con el texto extraído
+        response = await fetch(`${API_BASE_URL}/generate-literary-commentary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: extractedText.trim(),
+          }),
         })
       }
 
@@ -927,7 +1011,7 @@ export default function PDFExamGenerator() {
                   <Label className="text-white text-lg">¿Cómo quieres proporcionar el texto?</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div 
-                      onClick={() => setLiteraryInputMode('text')}
+                      onClick={() => switchLiteraryInputMode('text')}
                       className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
                         literaryInputMode === 'text' 
                           ? 'border-purple-500 bg-purple-500/10' 
@@ -949,7 +1033,7 @@ export default function PDFExamGenerator() {
                     </div>
                     
                     <div 
-                      onClick={() => setLiteraryInputMode('pdf')}
+                      onClick={() => switchLiteraryInputMode('pdf')}
                       className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
                         literaryInputMode === 'pdf' 
                           ? 'border-purple-500 bg-purple-500/10' 
@@ -971,7 +1055,7 @@ export default function PDFExamGenerator() {
                     </div>
 
                     <div 
-                      onClick={() => setLiteraryInputMode('image')}
+                      onClick={() => switchLiteraryInputMode('image')}
                       className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
                         literaryInputMode === 'image' 
                           ? 'border-purple-500 bg-purple-500/10' 
@@ -1098,6 +1182,20 @@ export default function PDFExamGenerator() {
                         <div>
                           <p className="text-red-300 font-medium">Error con la imagen</p>
                           <p className="text-red-400/70 text-sm">{literaryImageSizeError}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {literaryImageSuccessMessage && (
+                      <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-500/20 to-green-600/20 rounded-lg border border-green-500/30 animate-in slide-in-from-bottom-2">
+                        <div className="p-2 bg-green-500/20 rounded-full">
+                          <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-green-300 font-medium">OCR Completado</p>
+                          <p className="text-green-400/70 text-sm">{literaryImageSuccessMessage}</p>
                         </div>
                       </div>
                     )}
@@ -1241,7 +1339,7 @@ export default function PDFExamGenerator() {
                           setLiteraryFileSizeError(null)
                           setLiteraryImageFile(null)
                           setLiteraryImageSizeError(null)
-                          setLiteraryInputMode("text")
+                          switchLiteraryInputMode("text")
                         }}
                         variant="outline"
                         className="bg-gray-700/50 border-gray-600 text-white hover:bg-gray-600/50 px-8 py-3"
