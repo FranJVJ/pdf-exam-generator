@@ -56,29 +56,98 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(arrayBuffer)
       
       if (isProduction) {
-        // MODO VERCEL/PRODUCCIÓN: Usar contenido inteligente basado en metadatos del PDF
-        console.log('Running in production mode - using smart content generation')
+        // MODO VERCEL/PRODUCCIÓN: Usar OCR con Tesseract.js + pdfjs-dist
+        console.log('Running in production mode - using OCR with Tesseract.js + pdfjs-dist')
         
-        // Generar contenido basado en el nombre del archivo y metadatos
-        const fileName = file.name.replace('.pdf', '').replace(/[-_]/g, ' ')
-        const fileSize = (file.size / 1024 / 1024).toFixed(2)
-        
-        pdfContent = `
-        Documento PDF analizado: "${fileName}" (${fileSize}MB)
-        
-        Este documento contiene información educativa relevante sobre diversos temas académicos.
-        El sistema ha procesado exitosamente el archivo y está listo para generar preguntas
-        basadas en contenido educativo estándar que incluye:
-        
-        - Conceptos fundamentales y definiciones importantes
-        - Principios teóricos y aplicaciones prácticas  
-        - Relaciones entre diferentes elementos del tema
-        - Ejemplos ilustrativos y casos de estudio
-        - Conclusiones y puntos clave para recordar
-        
-        El generador de preguntas utilizará estos elementos para crear un examen
-        completo y bien estructurado que evalúe diferentes niveles de comprensión.
-        `
+        try {
+          // Importar las librerías necesarias
+          const pdfjsLib = await import('pdfjs-dist')
+          const { createWorker } = await import('tesseract.js')
+          
+          console.log('Loading PDF document...')
+          
+          // Cargar el PDF
+          const loadingTask = pdfjsLib.getDocument({ data: buffer })
+          const pdf = await loadingTask.promise
+          
+          console.log(`PDF loaded successfully. Pages: ${pdf.numPages}`)
+          
+          // Procesar solo las primeras 3 páginas para evitar timeouts
+          const maxPages = Math.min(pdf.numPages, 3)
+          let extractedText = ""
+          
+          // Crear worker de Tesseract una sola vez
+          console.log('Initializing Tesseract worker...')
+          const worker = await createWorker('eng')
+          
+          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+            try {
+              console.log(`Processing page ${pageNum}/${maxPages}...`)
+              
+              // Obtener la página
+              const page = await pdf.getPage(pageNum)
+              const viewport = page.getViewport({ scale: 2.0 })
+              
+              // Crear canvas para renderizar
+              const canvas = new OffscreenCanvas(viewport.width, viewport.height)
+              const context = canvas.getContext('2d')
+              
+              if (!context) {
+                throw new Error('No se pudo crear el contexto del canvas')
+              }
+              
+              // Renderizar la página (corregir parámetros)
+              await page.render({ 
+                canvasContext: context as any, 
+                viewport: viewport,
+                canvas: canvas as any
+              }).promise
+              
+              // Convertir canvas a blob para Tesseract
+              const imageBlob = await canvas.convertToBlob({ type: 'image/png' })
+              
+              // Extraer texto con OCR (usar blob directamente)
+              console.log(`Running OCR on page ${pageNum}...`)
+              const { data: { text } } = await worker.recognize(imageBlob)
+              
+              if (text && text.trim().length > 20) {
+                extractedText += `\n\n--- Página ${pageNum} ---\n${text.trim()}`
+                console.log(`Page ${pageNum} processed. Text length: ${text.length}`)
+              }
+              
+              // Pequeña pausa para evitar sobrecargar
+              await new Promise(resolve => setTimeout(resolve, 100))
+              
+            } catch (pageError) {
+              console.log(`Error processing page ${pageNum}:`, pageError)
+              continue // Continuar con la siguiente página
+            }
+          }
+          
+          await worker.terminate()
+          
+          if (extractedText.trim().length > 100) {
+            console.log(`OCR successful! Total extracted text length: ${extractedText.length}`)
+            pdfContent = extractedText.trim()
+          } else {
+            throw new Error('OCR extracted insufficient text')
+          }
+          
+        } catch (ocrError) {
+          const errorMessage = ocrError instanceof Error ? ocrError.message : 'Unknown OCR error'
+          console.log('OCR failed:', errorMessage)
+          
+          // Fallback: Informar que no se pudo procesar
+          return NextResponse.json(
+            { 
+              error: "No se pudo extraer el contenido del PDF. Este archivo puede contener imágenes complejas, texto no seleccionable o estar dañado.",
+              suggestion: "Para mejores resultados, intenta con un PDF que tenga texto seleccionable o usa la versión local de la aplicación.",
+              fileName: file.name,
+              details: errorMessage
+            }, 
+            { status: 422 }
+          )
+        }
         
       } else {
         // MODO LOCAL: Usar Python con pdfplumber
