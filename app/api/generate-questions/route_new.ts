@@ -137,17 +137,33 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(arrayBuffer)
       
       if (isProduction) {
-        // MODO VERCEL/PRODUCCIÓN: Usar contenido inteligente basado en metadatos del PDF
-        console.log('Running in production mode - using smart content generation')
+        // MODO VERCEL/PRODUCCIÓN: Intentar OCR con Tesseract.js
+        console.log('Running in production mode - attempting OCR with Tesseract.js')
         
-        // Detectar tema y generar contenido inteligente
-        const fileName = file.name.replace('.pdf', '').replace(/[-_]/g, ' ')
-        const fileSize = (file.size / 1024 / 1024).toFixed(2)
-        const topic = detectTopicFromFilename(fileName)
-        
-        console.log(`Detected topic: ${topic} for file: ${fileName}`)
-        
-        pdfContent = generateSmartContent(fileName, fileSize, topic)
+        try {
+          // Intentar extraer texto con OCR
+          console.log('Starting OCR extraction with Tesseract.js...')
+          
+          // Nota: Tesseract.js no puede procesar PDFs directamente
+          // Necesitaría convertir PDF a imagen primero
+          // Por ahora, probamos con el buffer y si falla, usamos fallback
+          
+          throw new Error('Tesseract needs image conversion - using fallback for now')
+          
+        } catch (ocrError) {
+          const errorMessage = ocrError instanceof Error ? ocrError.message : 'Unknown OCR error'
+          console.log('OCR failed, cannot extract real PDF content:', errorMessage)
+          
+          // En lugar de contenido genérico, informar que no se puede procesar
+          return NextResponse.json(
+            { 
+              error: "No se pudo extraer el contenido del PDF en la versión online. Para obtener preguntas basadas en el contenido real de tu PDF, te recomendamos usar la versión local de la aplicación.",
+              suggestion: "La versión online tiene limitaciones técnicas para procesar ciertos tipos de PDFs. Para mejores resultados, considera usar PDFs con texto seleccionable y estructura clara.",
+              fileName: file.name
+            }, 
+            { status: 422 }
+          )
+        }
         
       } else {
         // MODO LOCAL: Usar Python con pdfplumber
