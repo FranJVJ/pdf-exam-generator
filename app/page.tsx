@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, FileText, CheckCircle, XCircle, Loader2, Brain, Zap, Award, BookOpen, Target } from "lucide-react"
+import { Upload, FileText, CheckCircle, XCircle, Loader2, Brain, Zap, Award, BookOpen, Target, PenTool, MessageSquare, ArrowLeft, Image } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import Tesseract from 'tesseract.js'
 
 interface Question {
   id: number
@@ -39,6 +40,7 @@ interface ExamResult {
 }
 
 export default function PDFExamGenerator() {
+  const [mode, setMode] = useState<"exam" | "literary">("exam")
   const [step, setStep] = useState<"upload" | "generating" | "exam" | "results">("upload")
   const [file, setFile] = useState<File | null>(null)
   const [examType, setExamType] = useState<"test" | "development">("test")
@@ -47,6 +49,17 @@ export default function PDFExamGenerator() {
   const [results, setResults] = useState<ExamResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [fileSizeError, setFileSizeError] = useState<string | null>(null)
+  
+  // Estados para comentarios literarios
+  const [literaryText, setLiteraryText] = useState<string>("")
+  const [literaryCommentary, setLiteraryCommentary] = useState<string>("")
+  const [literaryInputMode, setLiteraryInputMode] = useState<"text" | "pdf" | "image">("text")
+  const [literaryFile, setLiteraryFile] = useState<File | null>(null)
+  const [literaryFileSizeError, setLiteraryFileSizeError] = useState<string | null>(null)
+  const [literaryImageFile, setLiteraryImageFile] = useState<File | null>(null)
+  const [literaryImageSizeError, setLiteraryImageSizeError] = useState<string | null>(null)
+  const [ocrProgress, setOcrProgress] = useState<number>(0)
+  const [isProcessingOCR, setIsProcessingOCR] = useState<boolean>(false)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -167,7 +180,160 @@ export default function PDFExamGenerator() {
     }
   }
 
+  const handleLiteraryFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0]
+    
+    // Limpiar errores previos
+    setLiteraryFileSizeError(null)
+    
+    if (selectedFile && selectedFile.type === "application/pdf") {
+      // Validar tamaño del archivo (máximo 10MB)
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (selectedFile.size > maxSize) {
+        const fileSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2)
+        setLiteraryFileSizeError(`El archivo es demasiado grande (${fileSizeMB}MB). El tamaño máximo permitido es 10MB.`)
+        setLiteraryFile(null)
+        return
+      }
+      
+      setLiteraryFile(selectedFile)
+    }
+  }
+
+  const handleLiteraryImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0]
+    
+    // Limpiar errores previos y texto
+    setLiteraryImageSizeError(null)
+    setLiteraryText("")
+    
+    if (selectedFile && selectedFile.type.startsWith('image/')) {
+      // Validar tamaño del archivo (máximo 5MB para imágenes)
+      const maxSize = 5 * 1024 * 1024 // 5MB
+      if (selectedFile.size > maxSize) {
+        const fileSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2)
+        setLiteraryImageSizeError(`La imagen es demasiado grande (${fileSizeMB}MB). El tamaño máximo permitido es 5MB.`)
+        setLiteraryImageFile(null)
+        return
+      }
+      
+      setLiteraryImageFile(selectedFile)
+      
+      // Procesar OCR automáticamente
+      setIsProcessingOCR(true)
+      setOcrProgress(0)
+      
+      try {
+        const result = await Tesseract.recognize(
+          selectedFile,
+          'spa+eng', // Español e inglés
+          {
+            logger: (m) => {
+              if (m.status === 'recognizing text') {
+                setOcrProgress(Math.round(m.progress * 100))
+              }
+            }
+          }
+        )
+        
+        const extractedText = result.data.text.trim()
+        if (extractedText) {
+          setLiteraryText(extractedText)
+        } else {
+          setLiteraryImageSizeError("No se pudo extraer texto de la imagen. Asegúrate de que la imagen contenga texto legible.")
+        }
+      } catch (error) {
+        console.error('Error en OCR:', error)
+        setLiteraryImageSizeError("Error procesando la imagen. Por favor, intenta con otra imagen.")
+      } finally {
+        setIsProcessingOCR(false)
+        setOcrProgress(0)
+      }
+    }
+  }
+
+  const generateLiteraryCommentary = async () => {
+    // Validar que haya contenido según el modo seleccionado
+    if (literaryInputMode === "text" && !literaryText.trim()) return
+    if (literaryInputMode === "pdf" && !literaryFile) return
+    if (literaryInputMode === "image" && !literaryText.trim()) return
+
+    setIsLoading(true)
+
+    try {
+      let response;
+
+      if (literaryInputMode === "text" || literaryInputMode === "image") {
+        // Modo texto: enviar directamente
+        response = await fetch("/api/literary-commentary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: literaryText.trim(),
+          }),
+        })
+      } else {
+        // Modo PDF: extraer texto primero y luego generar comentario
+        const formData = new FormData()
+        formData.append("pdf", literaryFile!)
+        formData.append("mode", "literary")
+
+        response = await fetch("/api/literary-commentary", {
+          method: "POST",
+          body: formData,
+        })
+      }
+
+      if (!response.ok) {
+        let errorMessage = "Error generando comentario"
+        let suggestion = ""
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+          if (errorData.suggestion) {
+            suggestion = "\n\n💡 " + errorData.suggestion
+          }
+        } catch {
+          // Si no se puede parsear el JSON, usar mensaje genérico
+        }
+        
+        // Para errores de PDF, mostrar mensaje amigable sin throw
+        if (errorMessage.includes("No se pudo extraer texto del PDF") || errorMessage.includes("PDF")) {
+          console.warn("PDF processing issue:", errorMessage)
+          alert(`📄 ${errorMessage}${suggestion}`)
+          return
+        }
+        
+        throw new Error(errorMessage + suggestion)
+      }
+
+      const data = await response.json()
+      setLiteraryCommentary(data.commentary)
+      
+      // Scroll automático hacia el comentario generado
+      setTimeout(() => {
+        const commentaryElement = document.getElementById('literary-commentary-result')
+        if (commentaryElement) {
+          commentaryElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    } catch (error) {
+      // Log detallado solo para errores técnicos inesperados
+      if (error instanceof Error && !error.message.includes("PDF") && !error.message.includes("No se pudo")) {
+        console.error("Unexpected error:", error)
+      } else {
+        console.warn("User-facing issue:", error instanceof Error ? error.message : "Unknown error")
+      }
+      
+      const errorMessage = error instanceof Error ? error.message : "Error al generar comentario literario. Inténtalo de nuevo."
+      alert(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const resetApp = () => {
+    setMode("exam")
     setStep("upload")
     setFile(null)
     setExamType("test")
@@ -175,6 +341,11 @@ export default function PDFExamGenerator() {
     setUserAnswers([])
     setResults([])
     setFileSizeError(null)
+    setLiteraryText("")
+    setLiteraryCommentary("")
+    setLiteraryInputMode("text")
+    setLiteraryFile(null)
+    setLiteraryFileSizeError(null)
     
     // Scroll automático hacia arriba
     setTimeout(() => {
@@ -233,7 +404,83 @@ export default function PDFExamGenerator() {
 
       <div className="pt-16">
         <div className="max-w-4xl mx-auto px-4 pb-12 -mt-8">
-          {step === "upload" && (
+          {/* Selección de modo - Solo mostrar en estado inicial */}
+          {((mode === 'exam' && step === "upload") || (mode === 'literary' && !literaryCommentary)) && (
+            <div className="mb-8">
+              <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm shadow-2xl">
+                <CardHeader className="text-center pb-6">
+                  <CardTitle className="text-2xl text-white">¿Qué quieres hacer hoy?</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Elige entre generar un examen u obtener un comentario de texto
+                  </CardDescription>
+                </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div 
+                    onClick={() => setMode('exam')}
+                    className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
+                      mode === 'exam' 
+                        ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' 
+                        : 'border-gray-600 bg-gray-700/30 hover:border-blue-400 hover:bg-blue-500/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className={`p-3 rounded-full ${mode === 'exam' ? 'bg-blue-500' : 'bg-blue-500/20'}`}>
+                        <Brain className={`h-6 w-6 ${mode === 'exam' ? 'text-white' : 'text-blue-400'}`} />
+                      </div>
+                      <div>
+                        <div className="text-white font-bold text-lg">Generar Examen</div>
+                        <div className="text-blue-300 text-sm font-medium">PDF → Preguntas IA</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-gray-300 text-sm">Convierte tu PDF en un examen inteligente</div>
+                      <div className="text-gray-400 text-xs">✓ Test y preguntas de desarrollo</div>
+                      <div className="text-gray-400 text-xs">✓ Corrección automática con IA</div>
+                    </div>
+                    {mode === 'exam' && (
+                      <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                        Seleccionado
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div 
+                    onClick={() => setMode('literary')}
+                    className={`relative p-6 rounded-xl border-2 transition-all cursor-pointer transform hover:scale-[1.02] ${
+                      mode === 'literary' 
+                        ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20' 
+                        : 'border-gray-600 bg-gray-700/30 hover:border-purple-400 hover:bg-purple-500/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className={`p-3 rounded-full ${mode === 'literary' ? 'bg-purple-500' : 'bg-purple-500/20'}`}>
+                        <PenTool className={`h-6 w-6 ${mode === 'literary' ? 'text-white' : 'text-purple-400'}`} />
+                      </div>
+                      <div>
+                        <div className="text-white font-bold text-lg">Comentario Literario</div>
+                        <div className="text-purple-300 text-sm font-medium">Literatura de Asia Oriental</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-gray-300 text-sm">Análisis profundo de textos literarios</div>
+                      <div className="text-gray-400 text-xs">✓ Análisis temático y estilístico</div>
+                      <div className="text-gray-400 text-xs">✓ Especializado en literatura asiática</div>
+                    </div>
+                    {mode === 'literary' && (
+                      <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                        Seleccionado
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          )}
+
+          {/* Contenido del modo Examen */}
+          {mode === 'exam' && step === "upload" && (
             <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm shadow-2xl mt-8">
               <CardHeader className="text-center pb-8">
                 <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
@@ -659,6 +906,383 @@ export default function PDFExamGenerator() {
                 </Button>
               </div>
             </div>
+          )}
+
+          {/* Contenido del modo Comentario Literario */}
+          {mode === 'literary' && (
+            <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm shadow-2xl mt-8">
+              <CardHeader className="text-center pb-8">
+                <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mb-4">
+                  <PenTool className="h-8 w-8 text-white" />
+                </div>
+                <CardTitle className="text-2xl text-white">Comentario Literario de Asia Oriental</CardTitle>
+                <CardDescription className="text-gray-400 text-lg">
+                  Ingresa un texto, relato o historia de literatura asiática para obtener un análisis profundo
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Selección de modo de entrada */}
+                <div className="space-y-4">
+                  <Label className="text-white text-lg">¿Cómo quieres proporcionar el texto?</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div 
+                      onClick={() => setLiteraryInputMode('text')}
+                      className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                        literaryInputMode === 'text' 
+                          ? 'border-purple-500 bg-purple-500/10' 
+                          : 'border-gray-600 bg-gray-700/30 hover:border-purple-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <PenTool className={`h-5 w-5 ${literaryInputMode === 'text' ? 'text-purple-400' : 'text-gray-400'}`} />
+                        <div>
+                          <div className="text-white font-medium">Escribir Texto</div>
+                          <div className="text-gray-400 text-xs">Pegar o escribir directamente</div>
+                        </div>
+                      </div>
+                      {literaryInputMode === 'text' && (
+                        <div className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                          ✓
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div 
+                      onClick={() => setLiteraryInputMode('pdf')}
+                      className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                        literaryInputMode === 'pdf' 
+                          ? 'border-purple-500 bg-purple-500/10' 
+                          : 'border-gray-600 bg-gray-700/30 hover:border-purple-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Upload className={`h-5 w-5 ${literaryInputMode === 'pdf' ? 'text-purple-400' : 'text-gray-400'}`} />
+                        <div>
+                          <div className="text-white font-medium">Subir PDF</div>
+                          <div className="text-gray-400 text-xs">Extraer texto automáticamente</div>
+                        </div>
+                      </div>
+                      {literaryInputMode === 'pdf' && (
+                        <div className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                          ✓
+                        </div>
+                      )}
+                    </div>
+
+                    <div 
+                      onClick={() => setLiteraryInputMode('image')}
+                      className={`relative p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                        literaryInputMode === 'image' 
+                          ? 'border-purple-500 bg-purple-500/10' 
+                          : 'border-gray-600 bg-gray-700/30 hover:border-purple-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Image className={`h-5 w-5 ${literaryInputMode === 'image' ? 'text-purple-400' : 'text-gray-400'}`} />
+                        <div>
+                          <div className="text-white font-medium">Subir Imagen</div>
+                          <div className="text-gray-400 text-xs">Extraer texto de la imagen</div>
+                        </div>
+                      </div>
+                      {literaryInputMode === 'image' && (
+                        <div className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                          ✓
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contenido según el modo seleccionado */}
+                {literaryInputMode === 'text' && (
+                  <div className="space-y-3">
+                    <Label htmlFor="literary-text" className="text-white text-lg">
+                      Texto Literario
+                    </Label>
+                    <Textarea
+                      id="literary-text"
+                      placeholder="Pega aquí tu texto, relato o historia de literatura de Asia Oriental..."
+                      value={literaryText}
+                      onChange={(e) => setLiteraryText(e.target.value)}
+                      className="min-h-[200px] bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 resize-none"
+                    />
+                    <p className="text-gray-500 text-sm">
+                      Especializado en: Literatura china, japonesa, coreana, y del sudeste asiático
+                    </p>
+                  </div>
+                )}
+
+                {literaryInputMode === 'pdf' && (
+                  <div className="space-y-3">
+                    <Label htmlFor="literary-pdf-upload" className="text-white text-lg">
+                      Archivo PDF con Texto Literario
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="literary-pdf-upload"
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleLiteraryFileUpload}
+                        className="cursor-pointer bg-gray-700/50 border-gray-600 text-white file:bg-gradient-to-r file:from-purple-500 file:to-pink-600 file:text-white file:border-0 file:rounded-md file:px-4 file:py-2 file:mr-4 hover:bg-gray-700/70 transition-all"
+                      />
+                    </div>
+                    
+                    {literaryFile && (
+                      <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30 animate-in slide-in-from-bottom-2">
+                        <div className="p-2 bg-purple-500/20 rounded-full">
+                          <FileText className="h-5 w-5 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="text-purple-300 font-medium">{literaryFile.name}</p>
+                          <p className="text-purple-400/70 text-sm">{(literaryFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {literaryFileSizeError && (
+                      <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-red-500/20 to-red-600/20 rounded-lg border border-red-500/30 animate-in slide-in-from-bottom-2">
+                        <div className="p-2 bg-red-500/20 rounded-full">
+                          <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-red-300 font-medium">Archivo demasiado grande</p>
+                          <p className="text-red-400/70 text-sm">{literaryFileSizeError}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <p className="text-gray-500 text-sm">
+                      Se extraerá automáticamente el texto del PDF para análisis literario
+                    </p>
+                  </div>
+                )}
+
+                {/* Contenido para modo imagen */}
+                {literaryInputMode === 'image' && (
+                  <div className="space-y-3">
+                    <Label htmlFor="literary-image-upload" className="text-white text-lg cursor-pointer">
+                      Subir Imagen
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="literary-image-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLiteraryImageUpload}
+                        className="cursor-pointer bg-gray-700/50 border-gray-600 text-white file:bg-gradient-to-r file:from-blue-500 file:to-purple-600 file:text-white file:border-0 file:rounded-md file:px-4 file:py-2 file:mr-4 hover:bg-gray-700/70 transition-all"
+                      />
+                    </div>
+                    
+                    {literaryImageFile && (
+                      <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg border border-blue-500/30 animate-in slide-in-from-bottom-2">
+                        <div className="p-2 bg-blue-500/20 rounded-full">
+                          <Image className="h-5 w-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="text-blue-300 font-medium">{literaryImageFile.name}</p>
+                          <p className="text-blue-400/70 text-sm">{(literaryImageFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {isProcessingOCR && (
+                      <div className="space-y-3 p-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg border border-blue-500/30 animate-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-500/20 rounded-full">
+                            <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+                          </div>
+                          <div>
+                            <p className="text-blue-300 font-medium">Procesando imagen...</p>
+                            <p className="text-blue-400/70 text-sm">Extrayendo texto con OCR</p>
+                          </div>
+                        </div>
+                        <Progress value={ocrProgress} className="h-2" />
+                        <p className="text-blue-300 text-xs text-center">{ocrProgress}% completado</p>
+                      </div>
+                    )}
+
+                    {literaryImageSizeError && (
+                      <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-red-500/20 to-red-600/20 rounded-lg border border-red-500/30 animate-in slide-in-from-bottom-2">
+                        <div className="p-2 bg-red-500/20 rounded-full">
+                          <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-red-300 font-medium">Error con la imagen</p>
+                          <p className="text-red-400/70 text-sm">{literaryImageSizeError}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {literaryText && literaryImageFile && (
+                      <div className="space-y-3">
+                        <Label htmlFor="extracted-text" className="text-white text-lg">
+                          Texto Extraído
+                        </Label>
+                        <Textarea
+                          id="extracted-text"
+                          value={literaryText}
+                          onChange={(e) => setLiteraryText(e.target.value)}
+                          className="min-h-[200px] bg-gray-700/50 border-gray-600 text-white placeholder-gray-400 resize-none"
+                          placeholder="El texto extraído aparecerá aquí..."
+                        />
+                        <p className="text-green-400 text-sm">
+                          Texto extraído exitosamente. Puedes editarlo antes de generar el comentario.
+                        </p>
+                      </div>
+                    )}
+                    
+                    <p className="text-gray-500 text-sm">
+                      Sube una imagen con texto literario y se extraerá automáticamente usando OCR
+                    </p>
+                  </div>
+                )}
+
+                {/* Información sobre el análisis */}
+                <div className="space-y-3 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <div className="p-1 bg-purple-500/20 rounded-full mt-1">
+                      <MessageSquare className="h-4 w-4 text-purple-400" />
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-purple-300 font-medium text-sm">El análisis incluirá:</h4>
+                      <ul className="text-purple-200/80 text-xs space-y-1">
+                        <li>• <strong>Análisis temático</strong>: Temas principales y secundarios</li>
+                        <li>• <strong>Estilo y técnica</strong>: Recursos literarios y narrativos</li>
+                        <li>• <strong>Contexto cultural</strong>: Referencias históricas y culturales asiáticas</li>
+                        <li>• <strong>Interpretación</strong>: Significado profundo y simbolismo</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Advertencias */}
+                <div className="space-y-3 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <div className="p-1 bg-yellow-500/20 rounded-full mt-1">
+                      <svg className="h-4 w-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-yellow-300 font-medium text-sm">Limitaciones importantes:</h4>
+                      <ul className="text-yellow-200/80 text-xs space-y-1">
+                        <li>• <strong>Procesamiento</strong>: Puede tardar unos segundos dependiendo del tamaño de la imagen</li>
+                        <li>• <strong>Calidad de imagen</strong>: El texto debe ser nítido y legible para mejores resultados</li>
+                        <li>• <strong>Tamaño máximo</strong>: 10MB para PDFs, 5MB para imágenes</li>
+                        <li>• <strong>Idiomas asiáticos</strong>: El análisis se realiza en español, no en idioma original</li>
+                        <li>• <strong>Textos muy cortos</strong>: Se requiere mínimo 50 caracteres para análisis</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recomendaciones */}
+                <div className="space-y-3 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <div className="p-1 bg-green-500/20 rounded-full mt-1">
+                      <svg className="h-4 w-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-green-300 font-medium text-sm">Funciona mejor con:</h4>
+                      <ul className="text-green-200/80 text-xs space-y-1">
+                        <li>• <strong>Literatura clásica asiática</strong>: Obras de autores reconocidos</li>
+                        <li>• <strong>Relatos completos</strong>: Textos con narrativa estructurada</li>
+                        <li>• <strong>Poesía tradicional</strong>: Haikus, tankas, y formas poéticas asiáticas</li>
+                        <li>• <strong>Fragmentos significativos</strong>: Pasajes con valor literario y cultural</li>
+                        <li>• <strong>Textos en español</strong>: Traducciones o textos originalmente en español</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={generateLiteraryCommentary}
+                  disabled={
+                    (literaryInputMode === 'text' && !literaryText.trim()) ||
+                    (literaryInputMode === 'pdf' && (!literaryFile || !!literaryFileSizeError)) ||
+                    (literaryInputMode === 'image' && (!literaryText.trim() || !!literaryImageSizeError || isProcessingOCR)) ||
+                    isLoading
+                  }
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-3 h-5 w-5 animate-spin" />
+                      {literaryInputMode === 'pdf' ? 'Extrayendo texto y generando comentario...' : 
+                       literaryInputMode === 'image' ? 'Generando comentario...' : 
+                       'Generando Comentario...'}
+                    </>
+                  ) : (
+                    <>
+                      <PenTool className="mr-3 h-5 w-5" />
+                      Generar Comentario Literario
+                    </>
+                  )}
+                </Button>
+
+                {/* Mostrar comentario generado */}
+                {literaryCommentary && (
+                  <div id="literary-commentary-result" className="mt-8">
+                    <Card className="bg-gradient-to-br from-purple-500/15 to-pink-500/15 border-purple-400/40 shadow-lg shadow-purple-500/10">
+                      <CardHeader className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-b border-purple-400/30">
+                        <CardTitle className="text-purple-700 flex items-center gap-2 text-lg font-bold">
+                          <MessageSquare className="h-5 w-5 text-purple-600" />
+                          Comentario Literario Generado
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6 bg-gradient-to-br from-purple-500/5 to-pink-500/5">
+                        <div className="prose prose-invert max-w-none">
+                          <div className="bg-gray-800/50 rounded-lg p-6 border border-purple-400/20">
+                            <pre className="whitespace-pre-wrap text-gray-200 leading-relaxed font-medium text-sm">
+                              {literaryCommentary}
+                            </pre>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <div className="text-center mt-6">
+                      <Button
+                        onClick={() => {
+                          setLiteraryText("")
+                          setLiteraryCommentary("")
+                          setLiteraryFile(null)
+                          setLiteraryFileSizeError(null)
+                          setLiteraryImageFile(null)
+                          setLiteraryImageSizeError(null)
+                          setOcrProgress(0)
+                          setIsProcessingOCR(false)
+                          setLiteraryInputMode("text")
+                        }}
+                        variant="outline"
+                        className="bg-gray-700/50 border-gray-600 text-white hover:bg-gray-600/50 px-8 py-3"
+                      >
+                        <PenTool className="mr-2 h-4 w-4" />
+                        Nuevo Comentario
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Botón para volver */}
+                <div className="text-center pt-4">
+                  <Button
+                    onClick={() => setMode('exam')}
+                    variant="ghost"
+                    className="text-gray-400 hover:text-purple-300 hover:bg-purple-500/10 transition-all"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver a Generar Exámenes o Comentarios
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 
