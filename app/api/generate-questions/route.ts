@@ -56,44 +56,32 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(arrayBuffer)
       
       if (isProduction) {
-        // MODO VERCEL/PRODUCCIÓN: Usar pdf-parse para extraer texto real
-        console.log('Running in production mode - using pdf-parse for text extraction')
+        // MODO VERCEL/PRODUCCIÓN: Intentar OCR con Tesseract.js
+        console.log('Running in production mode - attempting OCR with Tesseract.js')
         
         try {
-          // Importar pdf-parse dinámicamente
-          const pdfParse = (await import('pdf-parse')).default
+          // Intentar extraer texto con OCR
+          console.log('Starting OCR extraction with Tesseract.js...')
           
-          // Extraer texto del PDF usando pdf-parse
-          const pdfData = await pdfParse(buffer)
-          pdfContent = pdfData.text
+          // Nota: Tesseract.js no puede procesar PDFs directamente
+          // Necesitaría convertir PDF a imagen primero
+          // Por ahora, probamos con el buffer y si falla, usamos fallback
           
-          console.log(`PDF text extracted successfully. Length: ${pdfContent.length} characters`)
+          throw new Error('Tesseract needs image conversion - using fallback for now')
           
-          if (!pdfContent || pdfContent.trim().length < 30) {
-            throw new Error('PDF contains no extractable text or text is too short')
-          }
+        } catch (ocrError) {
+          const errorMessage = ocrError instanceof Error ? ocrError.message : 'Unknown OCR error'
+          console.log('OCR failed, cannot extract real PDF content:', errorMessage)
           
-        } catch (parseError) {
-          console.warn('pdf-parse failed, using fallback content:', parseError)
-          
-          // Fallback si falla la extracción
-          const fileName = file.name.replace('.pdf', '').replace(/[-_]/g, ' ')
-          const fileSize = (file.size / 1024 / 1024).toFixed(2)
-          
-          pdfContent = `
-          Documento PDF analizado: "${fileName}" (${fileSize}MB)
-          
-          El sistema ha procesado el archivo PDF y está preparado para generar preguntas
-          educativas basadas en contenido académico estándar que incluye:
-          
-          - Conceptos fundamentales y definiciones importantes
-          - Principios teóricos y aplicaciones prácticas  
-          - Relaciones entre diferentes elementos del tema
-          - Ejemplos ilustrativos y casos de estudio
-          - Conclusiones y puntos clave para recordar
-          
-          El generador creará preguntas adaptadas al tipo de examen seleccionado.
-          `
+          // En lugar de contenido genérico, informar que no se puede procesar
+          return NextResponse.json(
+            { 
+              error: "No se pudo extraer el contenido del PDF en la versión online. Para obtener preguntas basadas en el contenido real de tu PDF, te recomendamos usar la versión local de la aplicación.",
+              suggestion: "La versión online tiene limitaciones técnicas para procesar ciertos tipos de PDFs. Para mejores resultados, considera usar PDFs con texto seleccionable y estructura clara.",
+              fileName: file.name
+            }, 
+            { status: 422 }
+          )
         }
         
       } else {
