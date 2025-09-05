@@ -60,9 +60,8 @@ export async function POST(request: NextRequest) {
         console.log('Running in production mode - using OCR with Tesseract.js + pdfjs-dist')
         
         try {
-          // Importar las librerías necesarias
+          // Importar pdfjs-dist
           const pdfjsLib = await import('pdfjs-dist')
-          const { createWorker } = await import('tesseract.js')
           
           console.log('Loading PDF document...')
           
@@ -72,13 +71,9 @@ export async function POST(request: NextRequest) {
           
           console.log(`PDF loaded successfully. Pages: ${pdf.numPages}`)
           
-          // Procesar solo las primeras 3 páginas para evitar timeouts
-          const maxPages = Math.min(pdf.numPages, 3)
+          // Procesar hasta 5 páginas
+          const maxPages = Math.min(pdf.numPages, 5)
           let extractedText = ""
-          
-          // Crear worker de Tesseract una sola vez
-          console.log('Initializing Tesseract worker...')
-          const worker = await createWorker('eng')
           
           for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
             try {
@@ -86,51 +81,29 @@ export async function POST(request: NextRequest) {
               
               // Obtener la página
               const page = await pdf.getPage(pageNum)
-              const viewport = page.getViewport({ scale: 2.0 })
               
-              // Crear canvas para renderizar
-              const canvas = new OffscreenCanvas(viewport.width, viewport.height)
-              const context = canvas.getContext('2d')
+              // Intentar extraer texto seleccionable primero
+              const textContent = await page.getTextContent()
+              const textItems = textContent.items.map((item: any) => item.str).join(' ')
               
-              if (!context) {
-                throw new Error('No se pudo crear el contexto del canvas')
+              if (textItems.trim().length > 30) {
+                console.log(`Found selectable text on page ${pageNum} (${textItems.length} chars)`)
+                extractedText += `\n\n--- Página ${pageNum} ---\n${textItems.trim()}`
+              } else {
+                console.log(`Page ${pageNum} has no selectable text, skipping`)
               }
-              
-              // Renderizar la página (corregir parámetros)
-              await page.render({ 
-                canvasContext: context as any, 
-                viewport: viewport,
-                canvas: canvas as any
-              }).promise
-              
-              // Convertir canvas a blob para Tesseract
-              const imageBlob = await canvas.convertToBlob({ type: 'image/png' })
-              
-              // Extraer texto con OCR (usar blob directamente)
-              console.log(`Running OCR on page ${pageNum}...`)
-              const { data: { text } } = await worker.recognize(imageBlob)
-              
-              if (text && text.trim().length > 20) {
-                extractedText += `\n\n--- Página ${pageNum} ---\n${text.trim()}`
-                console.log(`Page ${pageNum} processed. Text length: ${text.length}`)
-              }
-              
-              // Pequeña pausa para evitar sobrecargar
-              await new Promise(resolve => setTimeout(resolve, 100))
               
             } catch (pageError) {
               console.log(`Error processing page ${pageNum}:`, pageError)
-              continue // Continuar con la siguiente página
+              continue
             }
           }
           
-          await worker.terminate()
-          
           if (extractedText.trim().length > 100) {
-            console.log(`OCR successful! Total extracted text length: ${extractedText.length}`)
+            console.log(`Text extraction successful! Total text length: ${extractedText.length}`)
             pdfContent = extractedText.trim()
           } else {
-            throw new Error('OCR extracted insufficient text')
+            throw new Error('PDF contains no selectable text - may be scanned images')
           }
           
         } catch (ocrError) {
