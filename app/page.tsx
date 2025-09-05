@@ -325,7 +325,7 @@ export default function PDFExamGenerator() {
         console.warn("User-facing issue:", error instanceof Error ? error.message : "Unknown error")
       }
       
-      const errorMessage = error instanceof Error ? error.message : "Error al generar comentario literario. Inténtalo de nuevo."
+      const errorMessage = error instanceof Error ? error.message : "Error al generar comentario de texto. Inténtalo de nuevo."
       alert(errorMessage)
     } finally {
       setIsLoading(false)
@@ -458,7 +458,7 @@ export default function PDFExamGenerator() {
                         <PenTool className={`h-6 w-6 ${mode === 'literary' ? 'text-white' : 'text-purple-400'}`} />
                       </div>
                       <div>
-                        <div className="text-white font-bold text-lg">Comentario Literario</div>
+                        <div className="text-white font-bold text-lg">Comentario de Texto</div>
                         <div className="text-purple-300 text-sm font-medium">Literatura de Asia Oriental</div>
                       </div>
                     </div>
@@ -915,7 +915,7 @@ export default function PDFExamGenerator() {
                 <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mb-4">
                   <PenTool className="h-8 w-8 text-white" />
                 </div>
-                <CardTitle className="text-2xl text-white">Comentario Literario de Asia Oriental</CardTitle>
+                <CardTitle className="text-2xl text-white">Comentario de Texto de Asia Oriental</CardTitle>
                 <CardDescription className="text-gray-400 text-lg">
                   Ingresa un texto, relato o historia de literatura asiática para obtener un análisis profundo
                 </CardDescription>
@@ -1130,7 +1130,7 @@ export default function PDFExamGenerator() {
                           placeholder="El texto extraído aparecerá aquí..."
                         />
                         <p className="text-green-400 text-sm">
-                          Texto extraído exitosamente. Puedes editarlo antes de generar el comentario.
+                          Texto extraído exitosamente. Puedes editarlo antes de generar el comentario de texto.
                         </p>
                       </div>
                     )}
@@ -1221,7 +1221,7 @@ export default function PDFExamGenerator() {
                   ) : (
                     <>
                       <PenTool className="mr-3 h-5 w-5" />
-                      Generar Comentario Literario
+                      Generar Comentario de Texto
                     </>
                   )}
                 </Button>
@@ -1233,7 +1233,7 @@ export default function PDFExamGenerator() {
                       <CardHeader className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-b border-purple-400/30">
                         <CardTitle className="text-purple-700 flex items-center gap-2 text-lg font-bold">
                           <MessageSquare className="h-5 w-5 text-purple-600" />
-                          Comentario Literario Generado
+                          Comentario de Texto Generado
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-6 bg-gradient-to-br from-purple-500/5 to-pink-500/5">
