@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       
       if (isProduction) {
         // MODO VERCEL/PRODUCCIÓN: Usar contenido inteligente basado en metadatos del PDF
-        console.log('Running in production mode - using smart content generation')
+        console.log('Running in production mode - using smart content generation v2.0')
         
         // Detectar tema y generar contenido inteligente
         const fileName = file.name.replace('.pdf', '').replace(/[-_]/g, ' ')
