@@ -58,8 +58,6 @@ export default function PDFExamGenerator() {
   const [literaryFileSizeError, setLiteraryFileSizeError] = useState<string | null>(null)
   const [literaryImageFile, setLiteraryImageFile] = useState<File | null>(null)
   const [literaryImageSizeError, setLiteraryImageSizeError] = useState<string | null>(null)
-  const [ocrProgress, setOcrProgress] = useState<number>(0)
-  const [isProcessingOCR, setIsProcessingOCR] = useState<boolean>(false)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -219,35 +217,38 @@ export default function PDFExamGenerator() {
       
       setLiteraryImageFile(selectedFile)
       
-      // Procesar OCR automáticamente
-      setIsProcessingOCR(true)
-      setOcrProgress(0)
+      // Procesar OCR con Python API
+      setIsLoading(true)
       
       try {
-        const result = await Tesseract.recognize(
-          selectedFile,
-          'spa+eng', // Español e inglés
-          {
-            logger: (m) => {
-              if (m.status === 'recognizing text') {
-                setOcrProgress(Math.round(m.progress * 100))
-              }
-            }
-          }
-        )
+        const formData = new FormData()
+        formData.append('image', selectedFile)
         
-        const extractedText = result.data.text.trim()
-        if (extractedText) {
-          setLiteraryText(extractedText)
-        } else {
-          setLiteraryImageSizeError("No se pudo extraer texto de la imagen. Asegúrate de que la imagen contenga texto legible.")
+        const response = await fetch(API_ENDPOINTS.extractTextFromImage, {
+          method: 'POST',
+          body: formData
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.detail || 'Error processing image')
         }
+        
+        const data = await response.json()
+        
+        if (data.text && data.text.trim()) {
+          setLiteraryText(data.text.trim())
+          setLiteraryImageSizeError(`✅ Texto extraído exitosamente (${data.length} caracteres)`)
+        } else {
+          setLiteraryImageSizeError("⚠️ No se pudo extraer texto de la imagen. Asegúrate de que contenga texto legible.")
+        }
+        
       } catch (error) {
         console.error('Error en OCR:', error)
-        setLiteraryImageSizeError("Error procesando la imagen. Por favor, intenta con otra imagen.")
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+        setLiteraryImageSizeError(`❌ Error procesando imagen: ${errorMessage}. Puedes transcribir manualmente el texto.`)
       } finally {
-        setIsProcessingOCR(false)
-        setOcrProgress(0)
+        setIsLoading(false)
       }
     }
   }
@@ -1087,22 +1088,6 @@ export default function PDFExamGenerator() {
                       </div>
                     )}
 
-                    {isProcessingOCR && (
-                      <div className="space-y-3 p-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg border border-blue-500/30 animate-in slide-in-from-bottom-2">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-500/20 rounded-full">
-                            <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
-                          </div>
-                          <div>
-                            <p className="text-blue-300 font-medium">Procesando imagen...</p>
-                            <p className="text-blue-400/70 text-sm">Extrayendo texto con OCR</p>
-                          </div>
-                        </div>
-                        <Progress value={ocrProgress} className="h-2" />
-                        <p className="text-blue-300 text-xs text-center">{ocrProgress}% completado</p>
-                      </div>
-                    )}
-
                     {literaryImageSizeError && (
                       <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-red-500/20 to-red-600/20 rounded-lg border border-red-500/30 animate-in slide-in-from-bottom-2">
                         <div className="p-2 bg-red-500/20 rounded-full">
@@ -1206,7 +1191,7 @@ export default function PDFExamGenerator() {
                   disabled={
                     (literaryInputMode === 'text' && !literaryText.trim()) ||
                     (literaryInputMode === 'pdf' && (!literaryFile || !!literaryFileSizeError)) ||
-                    (literaryInputMode === 'image' && (!literaryText.trim() || !!literaryImageSizeError || isProcessingOCR)) ||
+                    (literaryInputMode === 'image' && (!literaryText.trim() || !!literaryImageSizeError)) ||
                     isLoading
                   }
                   className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
@@ -1256,8 +1241,6 @@ export default function PDFExamGenerator() {
                           setLiteraryFileSizeError(null)
                           setLiteraryImageFile(null)
                           setLiteraryImageSizeError(null)
-                          setOcrProgress(0)
-                          setIsProcessingOCR(false)
                           setLiteraryInputMode("text")
                         }}
                         variant="outline"

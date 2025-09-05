@@ -5,6 +5,8 @@
 2. Cuenta en [GitHub](https://github.com) 
 3. Código fuente en tu repositorio de GitHub
 
+**📝 Nota importante**: Railway automáticamente instalará Tesseract OCR en el contenedor para el procesamiento de imágenes.
+
 ## 🔧 Configuración Inicial
 
 ### 1. Preparar el Repositorio

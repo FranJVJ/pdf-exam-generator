@@ -8,6 +8,8 @@ from typing import List, Optional
 import json
 from groq import Groq
 import logging
+from PIL import Image
+import pytesseract
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +64,66 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "pdf-exam-generator-api"}
+
+@app.post("/extract-text-from-image")
+async def extract_text_from_image(
+    image: UploadFile = File(...)
+):
+    """
+    Extrae texto de una imagen usando OCR con Tesseract
+    """
+    try:
+        logger.info(f"Processing image: {image.filename}")
+        
+        # Validar que sea una imagen
+        if not image.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="Only image files are allowed")
+        
+        # Validar tamaño (5MB máximo)
+        content = await image.read()
+        if len(content) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Image too large ({len(content)/1024/1024:.1f}MB). Maximum 5MB allowed."
+            )
+        
+        # Procesar imagen con OCR
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_file:
+            temp_file.write(content)
+            temp_file.flush()
+            
+            try:
+                # Abrir imagen con PIL
+                img = Image.open(temp_file.name)
+                
+                # Configurar Tesseract para español e inglés
+                custom_config = r'--oem 3 --psm 6 -l spa+eng'
+                
+                # Extraer texto
+                extracted_text = pytesseract.image_to_string(img, config=custom_config)
+                
+                logger.info(f"Extracted {len(extracted_text)} characters from image")
+                
+                if len(extracted_text.strip()) < 10:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="Could not extract sufficient text from image. Make sure the image contains clear, readable text."
+                    )
+                
+                return {
+                    "text": extracted_text.strip(),
+                    "length": len(extracted_text.strip())
+                }
+                
+            finally:
+                # Limpiar archivo temporal
+                os.unlink(temp_file.name)
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"OCR error: {e}")
+        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
 
 @app.post("/generate-questions")
 async def generate_questions(

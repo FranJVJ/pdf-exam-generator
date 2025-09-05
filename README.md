@@ -10,7 +10,8 @@ Una aplicación web moderna que convierte documentos PDF en exámenes interactiv
 
 - 🔄 **Dos tipos de examen**: Test (20 preguntas múltiple opción) y Desarrollo (5 preguntas abiertas)
 - 🤖 **IA powered**: Usa Groq AI (LLaMA 3.3-70B-Versatile) para generar preguntas inteligentes
-- 📄 **Procesamiento de PDFs**: Extrae texto automáticamente usando pdfplumber (local)
+- 📄 **Procesamiento de PDFs**: Extrae texto automáticamente usando pdfplumber
+- 🖼️ **OCR integrado**: Procesamiento de imágenes con Tesseract (español/inglés)
 - 🎯 **Corrección automática**: Evaluación instantánea con retroalimentación detallada
 - 🔀 **Preguntas variadas**: Sistema de aleatorización para evitar repetición
 - 💰 **Completamente gratis**: Sin costos de API usando Groq
