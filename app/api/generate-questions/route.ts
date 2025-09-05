@@ -60,50 +60,64 @@ export async function POST(request: NextRequest) {
         console.log('Running in production mode - using OCR with Tesseract.js + pdfjs-dist')
         
         try {
-          // Importar pdfjs-dist
-          const pdfjsLib = await import('pdfjs-dist')
+          console.log('Starting PDF processing in production mode...')
           
-          console.log('Loading PDF document...')
-          
-          // Cargar el PDF
-          const loadingTask = pdfjsLib.getDocument({ data: buffer })
-          const pdf = await loadingTask.promise
-          
-          console.log(`PDF loaded successfully. Pages: ${pdf.numPages}`)
-          
-          // Procesar hasta 5 páginas
-          const maxPages = Math.min(pdf.numPages, 5)
-          let extractedText = ""
-          
-          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-            try {
-              console.log(`Processing page ${pageNum}/${maxPages}...`)
-              
-              // Obtener la página
-              const page = await pdf.getPage(pageNum)
-              
-              // Intentar extraer texto seleccionable primero
-              const textContent = await page.getTextContent()
-              const textItems = textContent.items.map((item: any) => item.str).join(' ')
-              
-              if (textItems.trim().length > 30) {
-                console.log(`Found selectable text on page ${pageNum} (${textItems.length} chars)`)
-                extractedText += `\n\n--- Página ${pageNum} ---\n${textItems.trim()}`
-              } else {
-                console.log(`Page ${pageNum} has no selectable text, skipping`)
+          // Intentar con pdfjs-dist
+          try {
+            const pdfjsLib = await import('pdfjs-dist')
+            console.log('pdfjs-dist imported successfully')
+            
+            // Configurar worker para entorno serverless
+            pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js`
+            
+            console.log('Loading PDF document...')
+            const loadingTask = pdfjsLib.getDocument({ 
+              data: buffer,
+              verbosity: 0 // Reducir logs internos
+            })
+            const pdf = await loadingTask.promise
+            
+            console.log(`PDF loaded successfully. Pages: ${pdf.numPages}`)
+            
+            // Procesar hasta 3 páginas
+            const maxPages = Math.min(pdf.numPages, 3)
+            let extractedText = ""
+            
+            for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+              try {
+                console.log(`Processing page ${pageNum}/${maxPages}...`)
+                
+                const page = await pdf.getPage(pageNum)
+                console.log(`Page ${pageNum} loaded`)
+                
+                const textContent = await page.getTextContent()
+                console.log(`Text content extracted for page ${pageNum}`)
+                
+                const textItems = textContent.items.map((item: any) => item.str).join(' ')
+                
+                if (textItems.trim().length > 10) {
+                  console.log(`Found text on page ${pageNum}: ${textItems.length} characters`)
+                  extractedText += `\n\n--- Página ${pageNum} ---\n${textItems.trim()}`
+                } else {
+                  console.log(`Page ${pageNum} has minimal text`)
+                }
+                
+              } catch (pageError) {
+                console.error(`Error processing page ${pageNum}:`, pageError)
+                continue
               }
-              
-            } catch (pageError) {
-              console.log(`Error processing page ${pageNum}:`, pageError)
-              continue
             }
-          }
-          
-          if (extractedText.trim().length > 100) {
-            console.log(`Text extraction successful! Total text length: ${extractedText.length}`)
-            pdfContent = extractedText.trim()
-          } else {
-            throw new Error('PDF contains no selectable text - may be scanned images')
+            
+            if (extractedText.trim().length > 50) {
+              console.log(`SUCCESS: Extracted ${extractedText.length} characters total`)
+              pdfContent = extractedText.trim()
+            } else {
+              throw new Error(`Insufficient text extracted: only ${extractedText.length} characters`)
+            }
+            
+          } catch (pdfjsError) {
+            console.error('pdfjs-dist failed:', pdfjsError)
+            throw pdfjsError
           }
           
         } catch (ocrError) {

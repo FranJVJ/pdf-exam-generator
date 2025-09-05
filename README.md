@@ -157,12 +157,69 @@ Califica las respuestas del examen
 
 Este proyecto está bajo la Licencia MIT. Ver `LICENSE` para más detalles.
 
-## 🙏 Reconocimientos
+## � **Nueva Arquitectura - Python + Railway**
+
+### **¿Por qué Python?**
+Después de múltiples intentos con JavaScript/Node.js, hemos migrado a Python para el procesamiento de PDFs debido a:
+
+- **Mejor compatibilidad**: `pdfplumber` maneja PDFs complejos (incluyendo Wuolah) de forma nativa
+- **Estabilidad**: Sin problemas de Canvas/OffscreenCanvas como en Vercel
+- **Rendimiento**: Procesamiento más rápido y confiable de documentos
+- **Escalabilidad**: Mejor manejo de memoria y recursos
+
+### **Arquitectura Dual**
+- **Frontend**: Next.js en Vercel (interfaz usuario)
+- **Backend**: FastAPI en Railway (procesamiento PDFs + AI)
+
+### **Desarrollo Local - Nueva API**
+
+#### **Configurar Backend Python**
+```bash
+# 1. Instalar dependencias Python
+cd api
+pip install -r requirements.txt
+
+# 2. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tu GROQ_API_KEY
+
+# 3. Ejecutar API
+python -m uvicorn main:app --reload --port 8000
+```
+
+#### **Configurar Frontend**
+```bash
+# 1. Actualizar .env.local
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+
+# 2. Ejecutar frontend
+npm run dev
+```
+
+#### **Desarrollo Completo (Recomendado)**
+```bash
+# Ejecutar ambos servidores simultáneamente
+npm run dev:full
+```
+
+### **Despliegue en Railway**
+Ver [DEPLOYMENT.md](./DEPLOYMENT.md) para instrucciones completas.
+
+#### **Pasos Rápidos**
+1. Fork/clonar este repositorio
+2. Crear cuenta en [Railway](https://railway.app)
+3. Conectar repositorio GitHub
+4. Configurar `GROQ_API_KEY` en variables de entorno
+5. Railway detectará automáticamente la configuración Python
+6. Actualizar `NEXT_PUBLIC_API_BASE_URL` en Vercel con la URL de Railway
+
+## �🙏 Reconocimientos
 
 - [Groq](https://groq.com/) por la API de IA gratuita
 - [shadcn/ui](https://ui.shadcn.com/) por los componentes de UI
 - [pdfplumber](https://github.com/jsvine/pdfplumber) por el procesamiento de PDFs
 - [Vercel](https://vercel.com/) por el hosting gratuito
+- [Railway](https://railway.app/) por el hosting Python
 
 ---
 

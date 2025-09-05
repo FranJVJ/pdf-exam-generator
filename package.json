@@ -5,6 +5,9 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "dev:full": "concurrently \"npm run dev\" \"npm run api:dev\"",
+    "api:dev": "cd api && python -m uvicorn main:app --reload --port 8000",
+    "api:install": "cd api && pip install -r requirements.txt",
     "lint": "next lint",
     "start": "next start"
   },
@@ -72,6 +75,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

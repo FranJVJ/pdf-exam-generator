@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Upload, FileText, CheckCircle, XCircle, Loader2, Brain, Zap, Award, BookOpen, Target, PenTool, MessageSquare, ArrowLeft, Image } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import Tesseract from 'tesseract.js'
+import { API_ENDPOINTS } from "@/lib/api-config"
 
 interface Question {
   id: number
@@ -93,7 +93,7 @@ export default function PDFExamGenerator() {
       formData.append("examType", examType)
       formData.append("randomSeed", Date.now().toString()) // Para variabilidad
 
-      const response = await fetch("/api/generate-questions", {
+      const response = await fetch(API_ENDPOINTS.generateQuestions, {
         method: "POST",
         body: formData,
       })
@@ -153,7 +153,7 @@ export default function PDFExamGenerator() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("/api/grade-exam", {
+      const response = await fetch(API_ENDPOINTS.gradeExam, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
