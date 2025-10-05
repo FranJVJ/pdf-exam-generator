@@ -721,6 +721,11 @@ Proporciona un comentario literario académico pero accesible, enfocándote en e
         logger.error(f"Error generating literary commentary: {e}")
         raise HTTPException(status_code=500, detail=f"Commentary generation error: {str(e)}")
 
+# Handler para Vercel Serverless Functions
+def handler(request, response):
+    return app(request, response)
+
+# Para desarrollo local
 if __name__ == "__main__":
     import uvicorn
     
