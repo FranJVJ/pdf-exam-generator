@@ -404,7 +404,7 @@ Formato JSON requerido:
         
         # Hacer request a Groq
         response = client.chat.completions.create(
-            model="deepseek-r1-distill-llama-70b",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=6000  # Aumentado para acomodar 20 preguntas de múltiple opción
@@ -463,7 +463,7 @@ Formato JSON requerido:
                 
                 try:
                     response = client.chat.completions.create(
-                        model="deepseek-r1-distill-llama-70b",
+                        model="llama-3.3-70b-versatile",
                         messages=[{"role": "user", "content": reduced_prompt}],
                         temperature=0.7,
                         max_tokens=6000
@@ -593,7 +593,7 @@ Formato JSON requerido:
 """
             
             response = client.chat.completions.create(
-                model="deepseek-r1-distill-llama-70b",
+                model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=3000
@@ -690,7 +690,7 @@ Proporciona un comentario literario académico pero accesible, enfocándote en e
         # Llamar a la API de Groq
         client = get_groq_client()
         response = client.chat.completions.create(
-            model="deepseek-r1-distill-llama-70b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
