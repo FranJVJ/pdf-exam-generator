@@ -1,32 +1,66 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-import pdfplumber
-import tempfile
-import os
-from typing import List, Optional
-import json
-from groq import Groq
-import logging
-from PIL import Image
-import pytesseract
+from http.server import BaseHTTPRequestHandlerfrom http.server import BaseHTTPRequestHandler
 
-# Cargar variables de entorno desde .env en desarrollo
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    print("✅ Loaded environment variables from .env file")
-    print(f"✅ GROQ_API_KEY configured: {'Yes' if os.getenv('GROQ_API_KEY') else 'No'}")
-except ImportError:
-    print("⚠️ python-dotenv not installed, using system environment variables")
-except Exception as e:
-    print(f"❌ Error loading .env file: {e}")
+import jsonimport json
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+
+class handler(BaseHTTPRequestHandler):class handler(BaseHTTPRequestHandler):
+
+    def do_GET(self):    def do_GET(self):
+
+        self.send_response(200)        self.send_response(200)
+
+        self.send_header('Content-type', 'application/json')        self.send_header('Content-type', 'application/json')
+
+        self.send_header('Access-Control-Allow-Origin', '*')        self.send_header('Access-Control-Allow-Origin', '*')
+
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+        self.end_headers()        self.end_headers()
+
+                
+
+        response = {        response = {
+
+            "message": "PDF Exam Generator API - Vercel Serverless",            "message": "PDF Exam Generator API - Vercel Serverless",
+
+            "version": "1.0.0",            "version": "1.0.0",
+
+            "status": "active",            "status": "active",
+
+            "timestamp": "2025-10-19",            "timestamp": "2025-10-19",
+
+            "endpoints": {            "endpoints": {
+
+                "health": "/api/health",                "health": "/api/health",
+
+                "generate_questions": "/api/generate-questions",                "generate_questions": "/api/generate-questions",
+
+                "grade_exam": "/api/grade-exam",                "grade_exam": "/api/grade-exam",
+
+                "extract_text": "/api/extract-text-from-image"                "extract_text": "/api/extract-text-from-image"
+
+            }            }
+
+        }        }
+
+        self.wfile.write(json.dumps(response, indent=2).encode())        self.wfile.write(json.dumps(response, indent=2).encode())
+
+
+
+    def do_OPTIONS(self):    def do_OPTIONS(self):
+
+        self.send_response(200)        self.send_response(200)
+
+        self.send_header('Access-Control-Allow-Origin', '*')        self.send_header('Access-Control-Allow-Origin', '*')
+
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+        self.end_headers()        self.end_headers()
 
 app = FastAPI(title="PDF Exam Generator API", version="1.0.0")
 
