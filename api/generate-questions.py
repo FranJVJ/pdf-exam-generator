@@ -6,11 +6,6 @@ from groq import Groq
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            # CORS headers
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-            
             # Leer el cuerpo de la petición
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
@@ -21,19 +16,13 @@ class handler(BaseHTTPRequestHandler):
             exam_type = request_data.get('examType', 'test')
             
             if not content.strip():
-                self.send_response(400)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "Content is required"}).encode())
+                self._send_error_response(400, "Content is required")
                 return
             
             # Configurar Groq
             groq_api_key = os.getenv("GROQ_API_KEY")
             if not groq_api_key:
-                self.send_response(500)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "GROQ_API_KEY not configured"}).encode())
+                self._send_error_response(500, "GROQ_API_KEY not configured")
                 return
             
             client = Groq(api_key=groq_api_key)
@@ -119,17 +108,28 @@ Responde SOLO con el JSON, sin texto adicional.
             response_data = json.loads(json_text)
             
             # Enviar respuesta exitosa
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(response_data).encode())
+            self._send_success_response(response_data)
             
         except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            error_response = {"error": f"Error generating questions: {str(e)}"}
-            self.wfile.write(json.dumps(error_response).encode())
+            self._send_error_response(500, f"Error generating questions: {str(e)}")
+    
+    def _send_success_response(self, data):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
+    
+    def _send_error_response(self, status_code, message):
+        self.send_response(status_code)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+        self.wfile.write(json.dumps({"error": message}).encode())
     
     def do_OPTIONS(self):
         self.send_response(200)
