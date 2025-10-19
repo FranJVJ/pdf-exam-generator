@@ -1,39 +1,63 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+import tempfile
+import io
 from groq import Groq
+from urllib.parse import parse_qs
+import cgi
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            # Leer el cuerpo de la petición
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
+            # Verificar el Content-Type
+            content_type = self.headers.get('Content-Type', '')
             
-            # Decodificar con manejo robusto de errores
-            try:
-                decoded_data = post_data.decode('utf-8')
-            except UnicodeDecodeError:
-                # Intentar con otras codificaciones comunes
+            if 'multipart/form-data' in content_type:
+                # Manejar FormData (multipart)
+                form = cgi.FieldStorage(
+                    fp=self.rfile,
+                    headers=self.headers,
+                    environ={'REQUEST_METHOD': 'POST'}
+                )
+                
+                # Obtener archivo PDF
+                if 'pdf' not in form:
+                    self._send_error_response(400, "PDF file is required")
+                    return
+                
+                pdf_file = form['pdf']
+                if not pdf_file.filename or not pdf_file.filename.lower().endswith('.pdf'):
+                    self._send_error_response(400, "Only PDF files are allowed")
+                    return
+                
+                # Obtener tipo de examen
+                exam_type = form.getvalue('examType', 'test')
+                
+                # Extraer texto del PDF
+                content = self._extract_pdf_text(pdf_file.file.read())
+                
+            else:
+                # Manejar JSON (fallback para compatibilidad)
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length)
+                
+                # Decodificar con manejo robusto de errores
                 try:
-                    decoded_data = post_data.decode('latin-1')
+                    decoded_data = post_data.decode('utf-8')
                 except UnicodeDecodeError:
                     try:
-                        decoded_data = post_data.decode('utf-8', errors='replace')
+                        decoded_data = post_data.decode('latin-1')
                     except UnicodeDecodeError:
-                        decoded_data = post_data.decode('ascii', errors='ignore')
-            
-            request_data = json.loads(decoded_data)
-            
-            # Obtener parámetros
-            content = request_data.get('content', '')
-            exam_type = request_data.get('examType', 'test')
+                        decoded_data = post_data.decode('utf-8', errors='replace')
+                
+                request_data = json.loads(decoded_data)
+                content = request_data.get('content', '')
+                exam_type = request_data.get('examType', 'test')
             
             # Limpiar el contenido de caracteres problemáticos
             if content:
-                # Asegurar que el contenido esté en UTF-8 limpio
                 content = content.encode('utf-8', errors='ignore').decode('utf-8')
-                # Remover caracteres de control y no imprimibles
                 content = ''.join(char for char in content if ord(char) >= 32 or char in '\n\r\t')
             
             if not content.strip():
@@ -157,6 +181,41 @@ Responde SOLO con el JSON, sin texto adicional.
             self._send_error_response(400, f"Invalid JSON in request: {str(json_error)}")
         except Exception as e:
             self._send_error_response(500, f"Error generating questions: {str(e)}")
+    
+    def _extract_pdf_text(self, pdf_content):
+        """Extrae texto de un PDF usando una biblioteca simple"""
+        try:
+            # Intentar usar pdfplumber si está disponible
+            try:
+                import pdfplumber
+                
+                # Crear archivo temporal
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+                    temp_file.write(pdf_content)
+                    temp_file_path = temp_file.name
+                
+                # Extraer texto
+                text_content = ""
+                with pdfplumber.open(temp_file_path) as pdf:
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_content += page_text + "\n"
+                
+                # Limpiar archivo temporal
+                try:
+                    os.unlink(temp_file_path)
+                except:
+                    pass
+                
+                return text_content.strip()
+                
+            except ImportError:
+                # Fallback: si no hay pdfplumber, intentar una extracción básica
+                return "PDF content extraction not available in this environment. Please provide text content directly."
+                
+        except Exception as e:
+            raise Exception(f"PDF extraction failed: {str(e)}")
     
     def _send_success_response(self, data):
         self.send_response(200)
