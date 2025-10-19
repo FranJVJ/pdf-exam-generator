@@ -64,13 +64,22 @@ class handler(BaseHTTPRequestHandler):
                 self._send_error_response(400, "Content is required")
                 return
             
-            # Configurar Groq
+            # Configurar Groq con debugging
             groq_api_key = os.getenv("GROQ_API_KEY")
             if not groq_api_key:
-                self._send_error_response(500, "GROQ_API_KEY not configured")
-                return
+                # Intentar otras variantes de la variable
+                groq_api_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_api_key") or os.getenv("GROQ_KEY")
+                if not groq_api_key:
+                    available_vars = [k for k in os.environ.keys() if 'groq' in k.lower() or 'GROQ' in k]
+                    self._send_error_response(500, f"GROQ_API_KEY not configured. Available Groq vars: {available_vars}")
+                    return
             
-            client = Groq(api_key=groq_api_key)
+            # Inicializar cliente Groq con manejo de errores
+            try:
+                client = Groq(api_key=groq_api_key)
+            except Exception as groq_init_error:
+                self._send_error_response(500, f"Failed to initialize Groq client: {str(groq_init_error)}")
+                return
             
             # Generar prompt
             if exam_type == 'test':
