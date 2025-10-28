@@ -59,18 +59,35 @@ class handler(BaseHTTPRequestHandler):
                             environ={'REQUEST_METHOD': 'POST'}
                         )
                         
+                        # Debug: mostrar qué campos están disponibles en FormData
+                        print(f"DEBUG GRADE: FormData fields: {[key for key in form.keys()]}")
+                        
                         # Extraer questions y userAnswers de FormData
                         questions_str = form.getvalue('questions', '[]')
                         user_answers_str = form.getvalue('userAnswers', '[]')
                         
+                        print(f"DEBUG GRADE: questions_str: {questions_str[:200]}...")
+                        print(f"DEBUG GRADE: user_answers_str: {user_answers_str[:200]}...")
+                        
+                        try:
+                            questions_data = json.loads(questions_str) if questions_str and questions_str != '[]' else []
+                            user_answers_data = json.loads(user_answers_str) if user_answers_str and user_answers_str != '[]' else []
+                        except json.JSONDecodeError as json_err:
+                            print(f"DEBUG GRADE: JSON decode error: {json_err}")
+                            questions_data = []
+                            user_answers_data = []
+                        
                         request_data = {
-                            'questions': json.loads(questions_str),
-                            'userAnswers': json.loads(user_answers_str)
+                            'questions': questions_data,
+                            'userAnswers': user_answers_data
                         }
                     else:
-                        # Parsear como JSON
+                        # Parsear como JSON (método principal para calificación)
                         file_wrapper.pos = 0
                         post_data = file_wrapper.data
+                        
+                        print(f"DEBUG GRADE: Parsing as JSON, data length: {len(post_data)}")
+                        print(f"DEBUG GRADE: Raw data preview: {post_data[:300]}...")
                         
                         # Decodificar con manejo robusto de errores
                         try:
@@ -81,7 +98,14 @@ class handler(BaseHTTPRequestHandler):
                             except UnicodeDecodeError:
                                 decoded_data = post_data.decode('utf-8', errors='replace')
                         
-                        request_data = json.loads(decoded_data)
+                        print(f"DEBUG GRADE: Decoded data preview: {decoded_data[:300]}...")
+                        
+                        try:
+                            request_data = json.loads(decoded_data)
+                            print(f"DEBUG GRADE: Successfully parsed JSON with keys: {list(request_data.keys())}")
+                        except json.JSONDecodeError as json_err:
+                            print(f"DEBUG GRADE: JSON parsing failed: {json_err}")
+                            raise
                         
                 except Exception as parse_error:
                     self._send_error_response(400, f"Could not parse request as FormData or JSON. Content-Type: '{content_type}'. Error: {str(parse_error)}")
