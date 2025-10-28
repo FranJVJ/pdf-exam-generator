@@ -1,29 +1,90 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+import cgi
 from groq import Groq
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            # Verificar el Content-Type
+            # Verificar el Content-Type con debugging
             content_type = self.headers.get('Content-Type', '')
             
-            if 'application/json' in content_type:
-                # Leer el cuerpo de la petición JSON
+            # Log para debugging
+            print(f"DEBUG GRADE: Received Content-Type: '{content_type}'")
+            print(f"DEBUG GRADE: All headers: {dict(self.headers)}")
+            
+            # Manejar tanto JSON como FormData
+            if 'application/json' in content_type or True:  # Aceptar cualquier content type
                 content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
                 
-                # Decodificar con manejo robusto de errores
+                # Intentar como FormData primero, luego como JSON
                 try:
-                    decoded_data = post_data.decode('utf-8')
-                except UnicodeDecodeError:
-                    try:
-                        decoded_data = post_data.decode('latin-1')
-                    except UnicodeDecodeError:
-                        decoded_data = post_data.decode('utf-8', errors='replace')
-                
-                request_data = json.loads(decoded_data)
+                    # Crear wrapper para los datos
+                    class FileWrapper:
+                        def __init__(self, file_obj):
+                            self.data = file_obj.read(content_length)
+                            self.pos = 0
+                        
+                        def read(self, size=-1):
+                            if size == -1:
+                                result = self.data[self.pos:]
+                                self.pos = len(self.data)
+                            else:
+                                result = self.data[self.pos:self.pos + size]
+                                self.pos += len(result)
+                            return result
+                        
+                        def readline(self, size=-1):
+                            start = self.pos
+                            if size == -1:
+                                end = self.data.find(b'\n', start) + 1
+                                if end == 0:
+                                    end = len(self.data)
+                            else:
+                                end = min(start + size, len(self.data))
+                            
+                            result = self.data[start:end]
+                            self.pos = end
+                            return result
+                    
+                    file_wrapper = FileWrapper(self.rfile)
+                    
+                    # Intentar parsear como FormData
+                    if 'multipart/form-data' in content_type:
+                        form = cgi.FieldStorage(
+                            fp=file_wrapper,
+                            headers=self.headers,
+                            environ={'REQUEST_METHOD': 'POST'}
+                        )
+                        
+                        # Extraer questions y userAnswers de FormData
+                        questions_str = form.getvalue('questions', '[]')
+                        user_answers_str = form.getvalue('userAnswers', '[]')
+                        
+                        request_data = {
+                            'questions': json.loads(questions_str),
+                            'userAnswers': json.loads(user_answers_str)
+                        }
+                    else:
+                        # Parsear como JSON
+                        file_wrapper.pos = 0
+                        post_data = file_wrapper.data
+                        
+                        # Decodificar con manejo robusto de errores
+                        try:
+                            decoded_data = post_data.decode('utf-8')
+                        except UnicodeDecodeError:
+                            try:
+                                decoded_data = post_data.decode('latin-1')
+                            except UnicodeDecodeError:
+                                decoded_data = post_data.decode('utf-8', errors='replace')
+                        
+                        request_data = json.loads(decoded_data)
+                        
+                except Exception as parse_error:
+                    self._send_error_response(400, f"Could not parse request as FormData or JSON. Content-Type: '{content_type}'. Error: {str(parse_error)}")
+                    return
                 
                 # Obtener preguntas y respuestas del usuario
                 questions = request_data.get('questions', [])
@@ -186,9 +247,7 @@ Formato JSON requerido:
                 
                 # Enviar respuesta exitosa
                 self._send_success_response({"results": results})
-                
-            else:
-                self._send_error_response(400, "Content-Type must be application/json")
+
                 
         except json.JSONDecodeError as json_error:
             self._send_error_response(400, f"Invalid JSON in request: {str(json_error)}")
