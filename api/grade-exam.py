@@ -6,7 +6,8 @@ from groq import Groq
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
-        print("DEBUG: GRADE-EXAM endpoint called")
+        print(f"DEBUG: GRADE-EXAM endpoint called. Path: {self.path}")
+        print(f"DEBUG: GRADE-EXAM Headers: {dict(self.headers)}")
         try:
             # Verificar el Content-Type con debugging
             content_type = self.headers.get('Content-Type', '')
