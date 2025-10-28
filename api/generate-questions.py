@@ -10,8 +10,12 @@ import cgi
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
-            # Verificar el Content-Type
+            # Verificar el Content-Type con debugging
             content_type = self.headers.get('Content-Type', '')
+            
+            # Log para debugging
+            print(f"DEBUG: Received Content-Type: '{content_type}'")
+            print(f"DEBUG: All headers: {dict(self.headers)}")
             
             if 'multipart/form-data' in content_type:
                 # Manejar FormData (multipart)
@@ -38,22 +42,85 @@ class handler(BaseHTTPRequestHandler):
                 content = self._extract_pdf_text(pdf_file.file.read())
                 
             else:
-                # Manejar JSON (fallback para compatibilidad)
+                # Intentar manejar como FormData primero, luego como JSON
                 content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
                 
-                # Decodificar con manejo robusto de errores
+                # Primero intentar como FormData sin importar el Content-Type
                 try:
-                    decoded_data = post_data.decode('utf-8')
-                except UnicodeDecodeError:
+                    # Reset file pointer
+                    import io
+                    
+                    # Crear un wrapper que mantenga los datos
+                    class FileWrapper:
+                        def __init__(self, file_obj):
+                            self.data = file_obj.read(content_length)
+                            self.pos = 0
+                        
+                        def read(self, size=-1):
+                            if size == -1:
+                                result = self.data[self.pos:]
+                                self.pos = len(self.data)
+                            else:
+                                result = self.data[self.pos:self.pos + size]
+                                self.pos += len(result)
+                            return result
+                        
+                        def readline(self, size=-1):
+                            start = self.pos
+                            if size == -1:
+                                end = self.data.find(b'\n', start) + 1
+                                if end == 0:  # not found
+                                    end = len(self.data)
+                            else:
+                                end = min(start + size, len(self.data))
+                            
+                            result = self.data[start:end]
+                            self.pos = end
+                            return result
+                    
+                    file_wrapper = FileWrapper(self.rfile)
+                    
+                    # Intentar parsear como FormData
+                    form = cgi.FieldStorage(
+                        fp=file_wrapper,
+                        headers=self.headers,
+                        environ={'REQUEST_METHOD': 'POST'}
+                    )
+                    
+                    # Si tiene archivo PDF, procesarlo como FormData
+                    if 'pdf' in form:
+                        pdf_file = form['pdf']
+                        if pdf_file.filename and pdf_file.filename.lower().endswith('.pdf'):
+                            exam_type = form.getvalue('examType', 'test')
+                            content = self._extract_pdf_text(pdf_file.file.read())
+                        else:
+                            raise ValueError("Not a valid PDF FormData")
+                    else:
+                        raise ValueError("No PDF found in FormData")
+                        
+                except Exception:
+                    # Si falla como FormData, intentar como JSON
                     try:
-                        decoded_data = post_data.decode('latin-1')
-                    except UnicodeDecodeError:
-                        decoded_data = post_data.decode('utf-8', errors='replace')
-                
-                request_data = json.loads(decoded_data)
-                content = request_data.get('content', '')
-                exam_type = request_data.get('examType', 'test')
+                        # Reset y leer como JSON
+                        file_wrapper.pos = 0
+                        post_data = file_wrapper.data
+                        
+                        # Decodificar con manejo robusto de errores
+                        try:
+                            decoded_data = post_data.decode('utf-8')
+                        except UnicodeDecodeError:
+                            try:
+                                decoded_data = post_data.decode('latin-1')
+                            except UnicodeDecodeError:
+                                decoded_data = post_data.decode('utf-8', errors='replace')
+                        
+                        request_data = json.loads(decoded_data)
+                        content = request_data.get('content', '')
+                        exam_type = request_data.get('examType', 'test')
+                        
+                    except Exception as json_error:
+                        self._send_error_response(400, f"Could not parse request as FormData or JSON. Content-Type: '{content_type}'. Error: {str(json_error)}")
+                        return
             
             # Limpiar el contenido de caracteres problemáticos
             if content:
