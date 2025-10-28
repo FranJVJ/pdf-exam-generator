@@ -6,6 +6,7 @@ from groq import Groq
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        print("DEBUG: GRADE-EXAM endpoint called")
         try:
             # Verificar el Content-Type con debugging
             content_type = self.headers.get('Content-Type', '')
@@ -90,8 +91,15 @@ class handler(BaseHTTPRequestHandler):
                 questions = request_data.get('questions', [])
                 user_answers = request_data.get('userAnswers', [])
                 
+                # Debug: mostrar qué datos se recibieron
+                print(f"DEBUG GRADE: Received data keys: {list(request_data.keys())}")
+                print(f"DEBUG GRADE: Questions count: {len(questions)}")
+                print(f"DEBUG GRADE: UserAnswers count: {len(user_answers)}")
+                print(f"DEBUG GRADE: Sample data: {str(request_data)[:500]}...")
+                
                 if not questions or not user_answers:
-                    self._send_error_response(400, "Questions and userAnswers are required")
+                    available_keys = list(request_data.keys())
+                    self._send_error_response(400, f"Questions and userAnswers are required. Received keys: {available_keys}. Questions: {len(questions)}, UserAnswers: {len(user_answers)}")
                     return
                 
                 # Procesar cada pregunta

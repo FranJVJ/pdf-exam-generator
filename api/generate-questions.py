@@ -9,6 +9,7 @@ import cgi
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        print("DEBUG: GENERATE-QUESTIONS endpoint called")
         try:
             # Verificar el Content-Type con debugging
             content_type = self.headers.get('Content-Type', '')
