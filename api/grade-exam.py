@@ -121,9 +121,18 @@ class handler(BaseHTTPRequestHandler):
                 print(f"DEBUG GRADE: UserAnswers count: {len(user_answers)}")
                 print(f"DEBUG GRADE: Sample data: {str(request_data)[:500]}...")
                 
-                if not questions or not user_answers:
+                # Temporal: permitir arrays vacíos para debugging
+                if not questions and not user_answers:
+                    # Si ambos están vacíos, probablemente es una llamada incorrecta
                     available_keys = list(request_data.keys())
-                    self._send_error_response(400, f"Questions and userAnswers are required. Received keys: {available_keys}. Questions: {len(questions)}, UserAnswers: {len(user_answers)}")
+                    all_data = str(request_data)[:1000]
+                    self._send_error_response(400, f"DEBUGGING: This is grade-exam endpoint but received empty data. Keys: {available_keys}. Data: {all_data}")
+                    return
+                elif not questions:
+                    self._send_error_response(400, f"Questions array is empty. Received {len(user_answers)} userAnswers")
+                    return
+                elif not user_answers:
+                    self._send_error_response(400, f"UserAnswers array is empty. Received {len(questions)} questions")
                     return
                 
                 # Procesar cada pregunta
